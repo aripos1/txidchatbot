@@ -179,7 +179,6 @@ def get_default_error_message(node_name: str) -> str:
         "intent_clarifier": "죄송합니다. 질문을 이해하는 중 오류가 발생했습니다. 다시 말씀해주시겠어요?",
         "faq_specialist": "죄송합니다. FAQ 검색 중 오류가 발생했습니다. 다시 시도해주세요.",
         "transaction_specialist": "죄송합니다. 트랜잭션 조회 중 오류가 발생했습니다. 다시 시도해주세요.",
-        "hybrid_specialist": "죄송합니다. 정보 검색 중 오류가 발생했습니다. 다시 시도해주세요.",
         "planner": "죄송합니다. 검색 계획을 수립하는 중 오류가 발생했습니다. 다시 시도해주세요.",
         "researcher": "죄송합니다. 정보 검색 중 오류가 발생했습니다. 다시 시도해주세요.",
         "grader": "죄송합니다. 검색 결과 평가 중 오류가 발생했습니다. 다시 시도해주세요.",

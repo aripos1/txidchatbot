@@ -12,7 +12,6 @@ from .specialists import (
     simple_chat_specialist,
     faq_specialist,
     transaction_specialist,
-    hybrid_specialist,
 )
 
 # Deep Research 노드들
@@ -35,7 +34,6 @@ __all__ = [
     "simple_chat_specialist",
     "faq_specialist",
     "transaction_specialist",
-    "hybrid_specialist",
     # Deep Research
     "check_db",
     "planner",

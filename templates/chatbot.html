@@ -559,7 +559,6 @@
             "simple_chat_specialist": "💬 응답 생성 중...",
             "faq_specialist": "📚 FAQ 검색 중...",
             "transaction_specialist": "🔍 트랜잭션 조회 중...",
-            "hybrid_specialist": "🔄 하이브리드 검색 중...",
             "planner": "📋 검색 계획 중...",
             "researcher": "🔎 웹 검색 중...",
             "grader": "📊 결과 평가 중...",
@@ -574,7 +573,6 @@
                 'router': '🔀 라우팅',
                 'faq_specialist': '📚 FAQ 검색',
                 'transaction_specialist': '🔍 트랜잭션 조회',
-                'hybrid_specialist': '🔄 하이브리드 검색',
                 'planner': '📋 검색 계획 수립',
                 'researcher': '🔎 웹 검색',
                 'grader': '📊 결과 평가',
@@ -592,7 +590,6 @@
                 '🔀 라우팅': 'router',
                 '📚 FAQ 검색': 'faq_specialist',
                 '🔍 트랜잭션 조회': 'transaction_specialist',
-                '🔄 하이브리드 검색': 'hybrid_specialist',
                 '📋 검색 계획 수립': 'planner',
                 '🔎 웹 검색': 'researcher',
                 '📊 결과 평가': 'grader',
@@ -707,21 +704,35 @@
         }
 
         // 페이지 로드 시 대화 기록 불러오기
+        // 중복 로드 방지 플래그
+        let isHistoryLoaded = false;
+        
         window.addEventListener('DOMContentLoaded', async () => {
-            await loadChatHistory();
+            if (!isHistoryLoaded) {
+                isHistoryLoaded = true;
+                await loadChatHistory();
+            }
         });
 
         async function loadChatHistory() {
             try {
+                const messagesContainer = document.getElementById('chatMessages');
+                // 기존 메시지 모두 제거 (중복 방지)
+                messagesContainer.innerHTML = '';
+                
                 const response = await fetch(`/api/chat/history/${sessionId}`);
                 const data = await response.json();
                 
                 if (data.history && data.history.length > 0) {
-                    const messagesContainer = document.getElementById('chatMessages');
-                    messagesContainer.innerHTML = '';
+                    // 중복 제거: 같은 role과 content를 가진 메시지는 한 번만 추가
+                    const seenMessages = new Set();
                     
                     data.history.forEach(msg => {
-                        addMessageToChat(msg.role, msg.content, false);
+                        const messageKey = `${msg.role}:${msg.content}`;
+                        if (!seenMessages.has(messageKey)) {
+                            seenMessages.add(messageKey);
+                            addMessageToChat(msg.role, msg.content, false);
+                        }
                     });
                 }
             } catch (error) {
@@ -1102,7 +1113,7 @@
                                     }
                                     
                                     // 응답 생성 노드 추적
-                                    if (nodeName && ['writer', 'faq_specialist', 'transaction_specialist', 'hybrid_specialist', 'intent_clarifier', 'simple_chat_specialist'].includes(nodeName)) {
+                                    if (nodeName && ['writer', 'faq_specialist', 'transaction_specialist', 'intent_clarifier', 'simple_chat_specialist'].includes(nodeName)) {
                                         currentResponseNode = nodeName;
                                     }
                                     
@@ -1343,11 +1354,130 @@
                 return placeholder;
             });
             
-            // HTML 이스케이프
-            let html = text
+            // 번호 리스트를 HTML로 변환 (HTML 이스케이프 전에 처리)
+            // 스트리밍 중에도 제대로 작동하도록 개선된 정규식 사용
+            // 연속된 번호 리스트 줄을 찾아서 <ol><li>로 변환
+            // 같은 번호가 반복되는 경우도 처리 (1. 1. 1. -> 1. 2. 3.)
+            // 더 유연한 패턴: 줄바꿈이 있거나 없거나, 공백이 있거나 없거나
+            text = text.replace(/((?:^\s*\d+\.\s+.+?(?:\n|$))+)/gm, (match) => {
+                const lines = match.split('\n');
+                const items = [];
+                
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed) continue; // 빈 줄 건너뛰기
+                    
+                    // 숫자 + 점 + 공백 + 내용 패턴 매칭 (더 유연한 패턴)
+                    const numberedMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+                    if (numberedMatch) {
+                        items.push(numberedMatch[1]); // 내용만 추출 (번호는 무시)
+                    }
+                }
+                
+                if (items.length > 0) {
+                    // <ol> 태그를 사용하면 브라우저가 자동으로 1, 2, 3... 번호를 매김
+                    return '<ol>' + items.map(item => `<li>${item}</li>`).join('') + '</ol>';
+                }
+                return match;
+            });
+            
+            // 추가 처리: 스트리밍 중에 부분적으로 완성된 번호 리스트도 처리
+            // 줄 단위로 다시 확인하여 놓친 번호 리스트 처리
+            const lines = text.split('\n');
+            const processedLines = [];
+            let inNumberedList = false;
+            let numberedListItems = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+                
+                // 이미 <ol> 태그가 있으면 건너뛰기
+                if (line.includes('<ol>') || line.includes('</ol>')) {
+                    if (inNumberedList && numberedListItems.length > 0) {
+                        processedLines.push('<ol>' + numberedListItems.map(item => `<li>${item}</li>`).join('') + '</ol>');
+                        numberedListItems = [];
+                    }
+                    inNumberedList = false;
+                    processedLines.push(line);
+                    continue;
+                }
+                
+                // 번호 리스트 항목인지 확인
+                const numberedMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+                if (numberedMatch) {
+                    if (!inNumberedList) {
+                        inNumberedList = true;
+                        numberedListItems = [];
+                    }
+                    numberedListItems.push(numberedMatch[1]);
+                    continue;
+                }
+                
+                // 번호 리스트 종료
+                if (inNumberedList) {
+                    if (numberedListItems.length > 0) {
+                        processedLines.push('<ol>' + numberedListItems.map(item => `<li>${item}</li>`).join('') + '</ol>');
+                    }
+                    inNumberedList = false;
+                    numberedListItems = [];
+                }
+                
+                processedLines.push(line);
+            }
+            
+            // 마지막 번호 리스트 처리
+            if (inNumberedList && numberedListItems.length > 0) {
+                processedLines.push('<ol>' + numberedListItems.map(item => `<li>${item}</li>`).join('') + '</ol>');
+            }
+            
+            text = processedLines.join('\n');
+            
+            // 불릿 포인트 리스트 처리
+            text = text.replace(/((?:^[-•]\s+.+$(?:\n|$))+)/gm, (match) => {
+                const lines = match.trim().split('\n');
+                const items = [];
+                
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    const bulletMatch = trimmed.match(/^[-•]\s+(.+)$/);
+                    if (bulletMatch) {
+                        items.push(bulletMatch[1]);
+                    }
+                }
+                
+                if (items.length > 0) {
+                    return '<ul>' + items.map(item => `<li>${item}</li>`).join('') + '</ul>';
+                }
+                return match;
+            });
+            
+            let html = text;
+            
+            // 이미 변환된 HTML 태그는 보호하고, 나머지 텍스트만 이스케이프
+            const htmlPlaceholders = [];
+            let placeholderIndex = 0;
+            html = html.replace(/(<[^>]+>)/g, (match) => {
+                const placeholder = `__HTML_TAG_${placeholderIndex}__`;
+                htmlPlaceholders[placeholderIndex] = match;
+                placeholderIndex++;
+                return placeholder;
+            });
+            
+            // HTML 이스케이프 (이미 변환된 HTML 태그는 제외)
+            html = html
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
+            
+            // 줄바꿈 처리 (HTML 태그 복원 전에 처리)
+            // HTML 태그 내부의 줄바꿈은 제외하고 처리
+            html = html.replace(/\n/g, '<br>');
+            
+            // HTML 태그 복원
+            htmlPlaceholders.forEach((tag, index) => {
+                html = html.replace(`__HTML_TAG_${index}__`, tag);
+            });
             
             // 코드 블록 복원
             codeBlocks.forEach((code, index) => {
@@ -1364,85 +1494,37 @@
             // 강조 표시 (**텍스트** -> <strong>텍스트</strong>)
             html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
             
-            // 링크 변환 (http/https URL)
+            // 링크 변환 (http/https URL) - 잘못된 인코딩 수정
             html = html.replace(
-                /(https?:\/\/[^\s<>]+)/g,
-                '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+                /(https?:\/\/[^\s<>\)]+)/g,
+                (match) => {
+                    // 잘못된 퓨니코드 인코딩 수정 (xn--com 등)
+                    let fixedUrl = match
+                        .replace(/xn--com[^\/]*/gi, 'com')
+                        .replace(/\)[^\/]*/g, '') // 잘못된 괄호 제거
+                        .replace(/[^\/]$/, ''); // URL 끝의 잘못된 문자 제거
+                    
+                    // 빗썸 URL 정규화
+                    if (fixedUrl.includes('bithumb')) {
+                        if (fixedUrl.includes('support.bithumb')) {
+                            fixedUrl = 'https://support.bithumb.com/hc/ko';
+                        } else if (fixedUrl.includes('www.bithumb') || fixedUrl.includes('bithumb.com')) {
+                            fixedUrl = 'https://www.bithumb.com';
+                        }
+                    }
+                    
+                    return `<a href="${fixedUrl}" target="_blank" rel="noopener noreferrer">${fixedUrl}</a>`;
+                }
             );
             
-            // 줄 단위로 처리
-            const lines = html.split('\n');
-            const processedLines = [];
-            let inList = false;
-            let listType = null;
-            let listItems = [];
-            
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                
-                // 숫자로 시작하는 리스트 (1. 2. 3. ...)
-                const numberedMatch = line.match(/^(\d+)\.\s+(.+)$/);
-                if (numberedMatch) {
-                    if (!inList || listType !== 'ol') {
-                        if (inList && listItems.length > 0) {
-                            processedLines.push(`<${listType}>${listItems.join('')}</${listType}>`);
-                            listItems = [];
-                        }
-                        inList = true;
-                        listType = 'ol';
-                    }
-                    listItems.push(`<li>${numberedMatch[2]}</li>`);
-                    continue;
-                }
-                
-                // 불릿 포인트 리스트 (- 또는 •)
-                const bulletMatch = line.match(/^[-•]\s+(.+)$/);
-                if (bulletMatch) {
-                    if (!inList || listType !== 'ul') {
-                        if (inList && listItems.length > 0) {
-                            processedLines.push(`<${listType}>${listItems.join('')}</${listType}>`);
-                            listItems = [];
-                        }
-                        inList = true;
-                        listType = 'ul';
-                    }
-                    listItems.push(`<li>${bulletMatch[1]}</li>`);
-                    continue;
-                }
-                
-                // 리스트 종료
-                if (inList && line === '') {
-                    if (listItems.length > 0) {
-                        processedLines.push(`<${listType}>${listItems.join('')}</${listType}>`);
-                        listItems = [];
-                    }
-                    inList = false;
-                    listType = null;
-                    processedLines.push('<br>');
-                    continue;
-                }
-                
-                // 일반 텍스트 줄
-                if (line === '') {
-                    processedLines.push('<br>');
-                } else {
-                    processedLines.push(line);
-                }
-            }
-            
-            // 마지막 리스트 처리
-            if (inList && listItems.length > 0) {
-                processedLines.push(`<${listType}>${listItems.join('')}</${listType}>`);
-            }
-            
-            html = processedLines.join(' ');
-            
-            // 연속된 <br>를 단락 구분으로 변환
-            html = html.replace(/(<br>\s*){2,}/g, '</p><p>');
+            // 연속된 <br>를 단락 구분으로 변환 (리스트 태그 내부는 제외)
+            html = html.replace(/(<br>\s*){2,}(?![^<]*<\/[ou]l>)/g, '</p><p>');
             html = '<p>' + html + '</p>';
             html = html.replace(/<p>\s*<\/p>/g, ''); // 빈 단락 제거
             html = html.replace(/<p>(<pre>)/g, '$1'); // 코드 블록 앞의 <p> 제거
             html = html.replace(/(<\/pre>)<\/p>/g, '$1'); // 코드 블록 뒤의 </p> 제거
+            html = html.replace(/<p>(<[ou]l>)/g, '$1'); // 리스트 앞의 <p> 제거
+            html = html.replace(/(<\/[ou]l>)<\/p>/g, '$1'); // 리스트 뒤의 </p> 제거
             
             return html;
         }

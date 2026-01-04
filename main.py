@@ -806,7 +806,6 @@ async def chat_stream(request: Request):
                 "simple_chat_specialist": "💬 응답 생성 중...",
                 "faq_specialist": "📚 FAQ 검색 중...",
                 "transaction_specialist": "🔍 트랜잭션 조회 중...",
-                "hybrid_specialist": "🔄 하이브리드 검색 중...",
                 "planner": "📋 검색 계획 중...",
                 "researcher": "🔎 웹 검색 중...",
                 "grader": "📊 결과 평가 중...",
@@ -816,7 +815,7 @@ async def chat_stream(request: Request):
             }
             
             # 응답 생성 노드 목록 (LLM 토큰 스트리밍 대상)
-            response_nodes = {"writer", "simple_chat_specialist", "faq_specialist", "intent_clarifier", "transaction_specialist", "hybrid_specialist"}
+            response_nodes = {"writer", "simple_chat_specialist", "faq_specialist", "intent_clarifier", "transaction_specialist"}
             
             try:
                 # 시작 이벤트

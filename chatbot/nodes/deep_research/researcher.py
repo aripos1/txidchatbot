@@ -150,7 +150,7 @@ async def _search_with_duckduckgo(search_queries: list) -> list:
 
 
 async def _get_price_from_api(coin_name: str, is_past_date: bool, requested_date):
-    """시세 API에서 가격 정보 가져오기"""
+    """시세 API에서 가격 정보 가져오기 (단일 코인)"""
     try:
         if is_past_date and requested_date:
             # 과거 날짜: CoinGecko 우선
@@ -187,23 +187,56 @@ async def _get_price_from_api(coin_name: str, is_past_date: bool, requested_date
     return None, None
 
 
-def _extract_coin_name(user_message: str) -> str:
-    """사용자 메시지에서 코인명 추출"""
+async def _get_prices_from_api(coin_names: list, is_past_date: bool, requested_date):
+    """시세 API에서 여러 코인의 가격 정보 가져오기 (병렬 처리)"""
+    import asyncio
+    
+    if not coin_names:
+        return []
+    
+    # 모든 코인을 병렬로 조회
+    tasks = [_get_price_from_api(coin_name, is_past_date, requested_date) for coin_name in coin_names]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    price_results = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            logger.warning(f"코인 '{coin_names[i]}' 조회 실패: {result}")
+            continue
+        
+        price_data, api_source = result
+        if price_data:
+            price_results.append((price_data, api_source, coin_names[i]))
+    
+    return price_results
+
+
+def _extract_coin_names(user_message: str) -> list:
+    """사용자 메시지에서 여러 코인명 추출 (리스트 반환)"""
+    coin_names = []
     try:
         from ...coinmarketcap import coinmarketcap_service
         
+        # 한국어 코인명 추출 (모든 매칭)
         for coin_korean, coin_symbol in coinmarketcap_service.SYMBOL_MAPPING.items():
             if coin_korean in user_message:
-                return coin_korean
+                if coin_korean not in coin_names:
+                    coin_names.append(coin_korean)
         
-        # 영어 심볼 추출
-        symbol_match = re.search(r'\b([A-Z]{2,5})\b', user_message.upper())
-        if symbol_match:
-            return symbol_match.group(1)
+        # 영어 심볼 추출 (모든 매칭)
+        symbol_matches = re.findall(r'\b([A-Z]{2,5})\b', user_message.upper())
+        for symbol in symbol_matches:
+            # 알려진 심볼인지 확인
+            if symbol in coinmarketcap_service.SYMBOL_MAPPING.values():
+                # 심볼을 한국어명으로 변환
+                for korean, eng_symbol in coinmarketcap_service.SYMBOL_MAPPING.items():
+                    if eng_symbol == symbol and korean not in coin_names:
+                        coin_names.append(korean)
+                        break
     except ImportError:
         pass
     
-    return None
+    return coin_names if coin_names else []
 
 
 def _extract_date_from_message(message: str):
@@ -273,49 +306,60 @@ async def researcher(state: ChatState):
         logger.info("✅ 시세 질문 감지")
         print("[Researcher] ✅ 시세 질문 감지", file=sys.stdout, flush=True)
         
-        coin_name = _extract_coin_name(last_user_message)
+        coin_names = _extract_coin_names(last_user_message)
         
-        if coin_name:
-            price_data, api_source = await _get_price_from_api(coin_name, is_past_date, requested_date)
+        if coin_names:
+            logger.info(f"추출된 코인: {coin_names}")
+            print(f"[Researcher] 추출된 코인: {', '.join(coin_names)}", file=sys.stdout, flush=True)
             
-            if price_data:
-                api_name = "CoinGecko" if "coingecko" in api_source else "CoinMarketCap"
+            # 여러 코인 병렬 조회
+            price_results = await _get_prices_from_api(coin_names, is_past_date, requested_date)
+            
+            if price_results:
+                api_results = []
                 date_info = f" ({requested_date.date()})" if is_past_date else ""
                 
-                # 가격 표시 생성
-                if price_data.get('price_krw') and price_data.get('price_usd', 0) > 0:
-                    price_display_str = f"💰 현재 가격: {price_data['price_krw']:,.0f}원 (${price_data['price_usd']:,.2f})"
-                elif price_data.get('price_krw'):
-                    price_display_str = f"💰 현재 가격: {price_data['price_krw']:,.0f}원"
-                elif price_data.get('price_usd', 0) > 0:
-                    price_display_str = f"💰 현재 가격: ${price_data['price_usd']:,.2f}"
-                else:
-                    price_display_str = "💰 가격 정보 없음"
+                for price_data, api_source, coin_name in price_results:
+                    api_name = "CoinGecko" if "coingecko" in api_source else "CoinMarketCap"
+                    
+                    # 가격 표시 생성
+                    if price_data.get('price_krw') and price_data.get('price_usd', 0) > 0:
+                        price_display_str = f"💰 현재 가격: {price_data['price_krw']:,.0f}원 (${price_data['price_usd']:,.2f})"
+                    elif price_data.get('price_krw'):
+                        price_display_str = f"💰 현재 가격: {price_data['price_krw']:,.0f}원"
+                    elif price_data.get('price_usd', 0) > 0:
+                        price_display_str = f"💰 현재 가격: ${price_data['price_usd']:,.2f}"
+                    else:
+                        price_display_str = "💰 가격 정보 없음"
+                    
+                    snippet = f"{price_data['name']} ({price_data['symbol']}) 시세{date_info}:\n\n{price_display_str}"
+                    
+                    if price_data.get('price_change_24h') is not None:
+                        snippet += f"\n📊 24시간 변동률: {price_data['price_change_24h']:+.2f}%"
+                    if price_data.get('market_cap'):
+                        snippet += f"\n💼 시가총액: ${price_data['market_cap']:,.0f}"
+                    
+                    snippet += f"\n🕐 업데이트: {price_data['last_updated']}"
+                    snippet += f"\n\n출처: {api_name}"
+                    
+                    api_result = {
+                        "title": f"{price_data['name']} 시세{date_info} - {api_name}",
+                        "snippet": snippet.strip(),
+                        "url": f"https://coinmarketcap.com/currencies/{price_data['name'].lower().replace(' ', '-')}/",
+                        "source": api_source,
+                        "score": 0.95,
+                    }
+                    
+                    api_results.append(api_result)
+                    logger.info(f"✅ {api_name} API 결과: {price_data['symbol']}")
                 
-                snippet = f"{price_data['name']} ({price_data['symbol']}) 시세{date_info}:\n\n{price_display_str}"
+                print(f"[Researcher] ✅ {len(api_results)}개 코인 시세 조회 완료", file=sys.stdout, flush=True)
                 
-                if price_data.get('price_change_24h') is not None:
-                    snippet += f"\n📊 24시간 변동률: {price_data['price_change_24h']:+.2f}%"
-                if price_data.get('market_cap'):
-                    snippet += f"\n💼 시가총액: ${price_data['market_cap']:,.0f}"
-                
-                snippet += f"\n🕐 업데이트: {price_data['last_updated']}"
-                snippet += f"\n\n출처: {api_name}"
-                
-                api_result = {
-                    "title": f"{price_data['name']} 시세{date_info} - {api_name}",
-                    "snippet": snippet.strip(),
-                    "url": f"https://coinmarketcap.com/currencies/{price_data['name'].lower().replace(' ', '-')}/",
-                    "source": api_source,
-                    "score": 0.95,
-                }
-                
-                logger.info(f"✅ {api_name} API 결과: {price_data['symbol']}")
-                print(f"[Researcher] ✅ {api_name} API 결과", file=sys.stdout, flush=True)
-                
-                return {"web_search_results": [api_result]}
+                return {"web_search_results": api_results}
             else:
                 logger.warning("⚠️ API 조회 실패 - 웹 검색으로 폴백")
+        else:
+            logger.warning("⚠️ 코인명 추출 실패 - 웹 검색으로 폴백")
     
     # 검색 쿼리 생성
     if not search_queries:

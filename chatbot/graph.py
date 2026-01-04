@@ -18,7 +18,6 @@ from .nodes import (
     simple_chat_specialist,
     faq_specialist,
     transaction_specialist,
-    hybrid_specialist,
     check_db,
     planner,
     researcher,
@@ -60,7 +59,7 @@ def route_to_specialist(state: ChatState) -> Literal[
         elif specialist_used == "web_search":
             return "web_search"
         elif specialist_used == "hybrid":
-            return "hybrid"
+            return "web_search"  # hybrid는 web_search(planner)로 직접 라우팅
         elif specialist_used == "intent_clarifier":
             return "intent_clarifier"
     
@@ -74,31 +73,20 @@ def route_to_specialist(state: ChatState) -> Literal[
     elif question_type == QuestionType.WEB_SEARCH:
         return "web_search"
     elif question_type == QuestionType.HYBRID:
-        return "hybrid"
+        return "web_search"  # hybrid는 web_search(planner)로 직접 라우팅
     elif question_type == QuestionType.INTENT_CLARIFICATION:
         return "intent_clarifier"
     else:
         return "general"
 
 
-def route_from_hybrid(state: ChatState) -> Literal["web_search", "writer"]:
-    """Hybrid Specialist에서 웹 검색 필요 여부 확인"""
-    needs_web_search = state.get("needs_web_search", False)
-    question_type = state.get("question_type")
-    
-    if needs_web_search or question_type == QuestionType.WEB_SEARCH:
-        return "web_search"
-    else:
-        return "writer"
-
-
-def route_from_faq(state: ChatState) -> Literal["hybrid_specialist", "save_response"]:
-    """FAQ Specialist에서 Hybrid 필요 여부 확인"""
+def route_from_faq(state: ChatState) -> Literal["planner", "save_response"]:
+    """FAQ Specialist에서 Deep Research 필요 여부 확인"""
     needs_web_search = state.get("needs_web_search", False)
     question_type = state.get("question_type")
     
     if needs_web_search or question_type == QuestionType.HYBRID:
-        return "hybrid_specialist"
+        return "planner"  # Deep Research로 직접 연결
     else:
         return "save_response"
 
@@ -141,7 +129,6 @@ def create_chatbot_graph():
     workflow.add_node("simple_chat_specialist", simple_chat_specialist)
     workflow.add_node("faq_specialist", faq_specialist)
     workflow.add_node("transaction_specialist", transaction_specialist)
-    workflow.add_node("hybrid_specialist", hybrid_specialist)
     
     # Deep Research 노드들
     workflow.add_node("check_db", check_db)
@@ -165,7 +152,7 @@ def create_chatbot_graph():
             "faq": "faq_specialist",
             "transaction": "transaction_specialist",
             "web_search": "planner",
-            "hybrid": "hybrid_specialist",
+            "hybrid": "planner",  # hybrid는 Deep Research로 직접 연결
             "general": "faq_specialist"
         }
     )
@@ -176,28 +163,18 @@ def create_chatbot_graph():
     # SimpleChat → Save
     workflow.add_edge("simple_chat_specialist", "save_response")
     
-    # FAQ → Save 또는 Hybrid
+    # FAQ → Save 또는 Deep Research
     workflow.add_conditional_edges(
         "faq_specialist",
         route_from_faq,
         {
-            "hybrid_specialist": "hybrid_specialist",
+            "planner": "planner",  # Deep Research로 직접 연결
             "save_response": "save_response"
         }
     )
     
     # Transaction → Save
     workflow.add_edge("transaction_specialist", "save_response")
-    
-    # Hybrid → Save 또는 WebSearch
-    workflow.add_conditional_edges(
-        "hybrid_specialist",
-        route_from_hybrid,
-        {
-            "web_search": "planner",
-            "writer": "writer"
-        }
-    )
     
     # Deep Research 순환형 구조
     # Planner → Researcher

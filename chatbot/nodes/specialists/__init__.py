@@ -5,12 +5,10 @@ Specialist 노드 모듈
 from .simple_chat import simple_chat_specialist
 from .faq import faq_specialist
 from .transaction import transaction_specialist
-from .hybrid import hybrid_specialist
 
 __all__ = [
     "simple_chat_specialist",
     "faq_specialist",
     "transaction_specialist",
-    "hybrid_specialist",
 ]
 
