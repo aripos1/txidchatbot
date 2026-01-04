@@ -269,20 +269,6 @@ python main.py
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-#### 옵션 3: LangGraph CLI 사용 (개발/디버깅용)
-
-```bash
-# LangGraph CLI 설치 (이미 설치되어 있다면 생략)
-pip install langgraph-cli
-
-# LangGraph 개발 서버 실행
-uvx --refresh --from "langgraph-cli[inmem]" --with-editable . --python 3.12 langgraph dev --allow-blocking
-```
-
-LangGraph Studio가 `http://localhost:8123`에서 실행됩니다.
-
-> **참고**: LangGraph CLI를 사용하면 LangGraph Studio에서 그래프를 시각화하고 디버깅할 수 있습니다.
-
 ### Docker를 사용한 실행
 
 #### 1. Docker Compose로 실행
