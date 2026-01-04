@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <title>가상자산 입출금 </title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    {% include "nav.html" %}
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --primary-hover: #357ABD;
+            --secondary-color: #f0f2f5;
+            --accent-color: #5bc0de;
+            --text-primary: #34495e;
+            --text-secondary: #7f8c8d;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --error-color: #e74c3c;
+            --card-bg: #ffffff;
+            --card-border: #e0e6ed;
+            --input-border: #dcdfe6;
+            --input-focus: #a8d5ff;
+            --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+            --shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.12);
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--secondary-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 1.5rem;
+            padding-top: 80px;
+            overflow-x: hidden;
+            overflow-y: scroll;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 2rem auto;
+            padding: 20px;
+            background-color: var(--card-bg);
+            border-radius: 1.25rem;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--primary-color);
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.025em;
+        }
+        .header p {
+            color: var(--text-secondary);
+            font-size: 1.15rem;
+            max-width: 650px;
+            margin: 0 auto;
+        }
+        .search-card {
+            width: 100%;
+            background: var(--card-bg);
+            border-radius: 1rem;
+            box-shadow: var(--shadow-sm);
+            padding: 2rem 2rem 1.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+        .search-bar {
+            position: relative;
+            width: 100%;
+            margin-bottom: 1.1rem;
+        }
+        .search-bar input {
+            width: 100%;
+            max-width: 700px;
+            padding: 1.1rem 1.4rem 1.1rem 3.2rem;
+            border: 1px solid var(--input-border);
+            border-radius: 0.6rem;
+            font-size: 1.05rem;
+            background: var(--secondary-color);
+            box-shadow: none;
+            transition: all 0.3s ease;
+            color: var(--text-primary);
+        }
+        .search-bar input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px var(--input-focus);
+            background: var(--card-bg);
+        }
+        .search-bar .search-icon {
+            position: absolute;
+            left: 1.2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1.4rem;
+            height: 1.4rem;
+            pointer-events: none;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+        }
+        .search-bar input::placeholder {
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+        .search-guide {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 1.04rem;
+            margin-top: 0.2rem;
+            margin-bottom: 0.2rem;
+        }
+        .highlight-text {
+            background: #fef08a;
+            color: #1e293b;
+            border-radius: 0.2em;
+            padding: 0 0.1em;
+        }
+        .table-responsive {
+            overflow-x: auto;
+            display: none;
+            margin-top: 1.5rem;
+        }
+        table {
+            width: 100%;
+            table-layout: auto;
+            border-collapse: collapse;
+            font-size: 1.05rem;
+            background: var(--card-bg);
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+        thead {
+            background: var(--secondary-color);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        th, td {
+            min-width: 120px;
+            max-width: 220px;
+            min-height: 48px;
+            padding: 1.1rem 0.7rem;
+            vertical-align: middle;
+            font-size: 1.05rem;
+            text-align: center;
+            white-space: pre-line;
+            word-break: break-word;
+        }
+        th {
+            font-weight: 700;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--card-border);
+            background: var(--secondary-color);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        tbody tr {
+            background: var(--card-bg);
+            border-radius: 1.1rem;
+            box-shadow: none;
+            margin-bottom: 1.1rem;
+            transition: box-shadow 0.18s, background 0.18s, transform 0.18s;
+        }
+        tbody tr:nth-child(even) {
+            background: var(--secondary-color);
+        }
+        tbody tr:hover {
+            background: #f0f4fa;
+            transition: background 0.2s;
+        }
+        .name-cell {
+            font-weight: 700;
+            font-size: 1.05em;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+            text-align: left;
+        }
+        td {
+            color: var(--text-primary);
+            font-size: 1.05em;
+        }
+        .badge-info {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3em;
+            padding: 0.22em 0.8em;
+            border-radius: 1em;
+            font-size: 0.97em;
+            font-weight: 600;
+            margin: 0 0.1em;
+        }
+        .badge-need { background: var(--primary-color); color: #fff; }
+        .badge-noneed { background: var(--success-color); color: #fff; }
+        .badge-block { background: var(--error-color); color: #fff; }
+        .badge-warn { background: var(--warning-color); color: #222; }
+        .badge-info svg {
+            width: 1em; height: 1em; vertical-align: middle;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.32em 1.1em;
+            border-radius: 1em;
+            font-size: 0.98em;
+            font-weight: 600;
+            color: #fff;
+            letter-spacing: 0.01em;
+        }
+        .badge-travel { background: linear-gradient(90deg,var(--primary-color) 60%,#60a5fa 100%); }
+        .badge-white { background: linear-gradient(90deg,var(--success-color) 60%,#34d399 100%); }
+        .badge-wallet { background: linear-gradient(90deg,var(--warning-color) 60%,#fbbf24 100%); color: #222; }
+        .badge-unreg { background: linear-gradient(90deg,var(--error-color) 60%,#f87171 100%); }
+        .badge-etc { background: linear-gradient(90deg,#64748b 60%,#a5b4fc 100%); }
+        .highlight {
+            background: #fef08a !important;
+            transition: background 0.3s;
+        }
+        @media (max-width: 900px) {
+            body {
+                padding: 1rem;
+                padding-top: 90px;
+            }
+            .container { padding: 1rem; }
+            .header h1 { font-size: 2rem; }
+            .header p { font-size: 1rem; }
+            th, td { font-size: 0.95rem; padding: 0.6rem 0.2rem; }
+            .search-bar input { width: 100%; }
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+                padding-top: 90px;
+            }
+            .container { padding: 1rem; }
+            .header h1 { font-size: 1.75rem; }
+            .header p { font-size: 0.95rem; }
+            .search-card { padding: 1.5rem 1rem; }
+            th, td { font-size: 0.92rem; padding: 0.5rem 0.2rem; }
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 0.75rem;
+                padding-top: 100px;
+            }
+            .container { padding: 0.75rem; }
+            .search-card { padding: 1.2rem 0.8rem 1.1rem 0.8rem; }
+            .header h1 { font-size: 1.25rem; }
+            .header p { font-size: 0.9rem; }
+            .search-bar input { width: 100%; font-size: 0.95rem; }
+            th, td { font-size: 0.85rem; padding: 0.4rem 0.15rem; }
+            table, thead, tbody, th, td, tr { display: block; }
+            thead { display: none; }
+            tr { margin-bottom: 1rem; border-radius: 1rem; box-shadow: var(--shadow-sm); background: var(--card-bg); }
+            td { text-align: left; padding: 0.5rem 0.8rem; border-bottom: none; position: relative; font-size: 0.85rem; }
+            td:before {
+                content: attr(data-label);
+                font-weight: 600;
+                color: var(--primary-color);
+                display: block;
+                margin-bottom: 0.2rem;
+                font-size: 0.88em;
+            }
+        }
+        @media (max-width: 480px) {
+            body {
+                padding: 0.5rem;
+                padding-top: 100px;
+            }
+            .container { padding: 0.5rem; }
+            .search-card { padding: 1rem 0.5rem; }
+            .header h1 { font-size: 1.1rem; }
+            .header p { font-size: 0.85rem; }
+            .search-bar input { font-size: 0.9rem; }
+            td, th { font-size: 0.8rem; }
+        }
+        th:nth-child(6), td:nth-child(6) {
+            text-align: left;
+            min-width: 200px;
+            max-width: 320px;
+            word-break: keep-all;
+            padding-left: 1.2em;
+            line-height: 1.6;
+            position: relative;
+        }
+        .ellipsis-cell {
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.5;
+            padding: 8px 12px;
+        }
+        .more-btn {
+            display: inline-block;
+            margin-left: 0.5em;
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            font-size: 0.97em;
+            cursor: pointer;
+            font-weight: 600;
+            padding: 0 0.3em;
+            vertical-align: top;
+        }
+        .popover {
+            position: absolute;
+            left: 0;
+            bottom: 100%;
+            z-index: 10;
+            min-width: 260px;
+            max-width: 340px;
+            background: #fff;
+            border: 1px solid var(--card-border);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.13);
+            border-radius: 0.7em;
+            padding: 1.1em 1.2em;
+            color: var(--text-primary);
+            font-size: 1.01em;
+            line-height: 1.7;
+            white-space: pre-line;
+            overflow: visible;
+            display: none;
+        }
+        .popover.active {
+            display: block;
+        }
+        /* 테이블 셀 스타일 수정 */
+        td {
+            vertical-align: top;
+            padding: 8px;
+        }
+        /* 각 컬럼별 너비 설정 */
+        td:nth-child(1) { /* 거래소/지갑명 */
+            width: 120px;
+        }
+        td:nth-child(2) { /* 입금 */
+            width: 80px;
+            text-align: center;
+        }
+        td:nth-child(3) { /* 출금 */
+            width: 80px;
+            text-align: center;
+        }
+        td:nth-child(4) { /* 출금가능 */
+            width: 80px;
+            text-align: center;
+        }
+        td:nth-child(5) { /* 출금제한 */
+            width: 80px;
+            text-align: center;
+        }
+        td:nth-child(6) { /* 보류/반환/신청 필요조건 */
+            width: 500px;
+            white-space: normal;
+            word-break: break-word;
+            text-align: left;
+        }
+        td:nth-child(7) { /* 비고 */
+            width: 120px;
+            white-space: normal;
+            word-break: break-word;
+        }
+        /* 테이블 전체 너비 조정 */
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            table-layout: auto;
+        }
+        /* 테이블 헤더 정렬 */
+        th {
+            text-align: center;
+            padding: 12px 8px;
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        th:nth-child(1),
+        th:nth-child(6),
+        th:nth-child(7) {
+            text-align: left;
+        }
+        /* 중요 컬럼 강조 */
+        td.important-cell, th.important-cell {
+            background: #f5f7fa;
+            font-weight: 600;
+            color: #1a237e;
+            border-left: 2px solid #e0e6ed;
+            border-right: 2px solid #e0e6ed;
+        }
+        /* 거래소/지갑명 강조 */
+        td.name-cell {
+            font-weight: 700;
+            color: #22223b;
+            background: #fefefe;
+            border-radius: 0.3em;
+        }
+        /* 분류 뱃지 강조 */
+        .badge {
+            font-size: 1em;
+            font-weight: 700;
+            box-shadow: 0 1px 4px rgba(80,120,200,0.07);
+        }
+        /* 표 전체 가독성 */
+        td, th {
+            line-height: 1.7;
+            font-size: 1.08em;
+        }
+        @media (max-width: 600px) {
+            td:before {
+                color: #1a237e;
+                font-weight: 700;
+            }
+        }
+    </style>
+    <script>
+    window._popoverFullTexts = [];
+    function searchExchange() {
+        const input = document.getElementById('searchInput').value.toLowerCase();
+        const rows = document.querySelectorAll('tbody tr:not(.no-result)');
+        let found = false;
+        rows.forEach(row => {
+            const nameCell = row.querySelector('.name-cell');
+            const name = nameCell?.textContent.toLowerCase() || '';
+            // 검색어 하이라이트 처리
+            if (nameCell) {
+                if (input && name.includes(input)) {
+                    const regex = new RegExp(`(${input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                    nameCell.innerHTML = nameCell.textContent.replace(regex, '<span class="highlight-text">$1</span>');
+                } else {
+                    nameCell.innerHTML = nameCell.textContent;
+                }
+            }
+            if (!input) {
+                row.style.display = '';
+                found = true;
+            } else if (name.includes(input)) {
+                row.style.display = '';
+                found = true;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        // 검색 결과 없음 안내 표시
+        document.querySelector('.no-result').style.display = found ? 'none' : '';
+        // 표 show/hide 처리
+        const tableWrap = document.querySelector('.table-responsive');
+        if (input) {
+            tableWrap.style.display = 'block';
+            document.getElementById('searchGuide').style.display = 'none';
+        } else {
+            tableWrap.style.display = 'none';
+            document.getElementById('searchGuide').style.display = '';
+        }
+    }
+    function formatLongCells() {
+        document.querySelectorAll('tbody tr').forEach((row) => {
+            // 7번째 칸(비고)만 줄바꿈 변환 처리
+            const cell = row.children[6];
+            if(cell) {
+                const original = cell.textContent;
+                cell.innerHTML = original.replace(/\n/g, '<br>').replace(/>/g, '<br>');
+            }
+        });
+    }
+    function setupPopoverEvents() {
+        document.addEventListener('click', function(e) {
+            document.querySelectorAll('.popover.active').forEach(p => p.classList.remove('active'));
+            if(e.target.classList.contains('more-btn')) {
+                e.stopPropagation();
+                const cell = e.target.parentElement;
+                // data-fulltext에서 전체 내용 가져와서 변환
+                const fullText = (cell.getAttribute('data-fulltext') || '')
+             
+                const popover = cell.querySelector('.popover');
+                popover.innerHTML = fullText;
+                popover.classList.add('active');
+            }
+        });
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        // 6번째 컬럼 강조 클래스 추가
+        document.querySelectorAll('tbody tr').forEach(row => {
+            const cell = row.children[5];
+            if(cell) cell.classList.add('important-cell');
+        });
+        formatLongCells();
+        setupPopoverEvents();
+    });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>가상자산 입출금 </h1>
+            <p>트래블룰, 화이트리스트, 미신고 거래소</p>
+        </div>
+        <div class="search-card">
+            <div class="search-bar">
+                <span class="search-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </span>
+                <input id="searchInput" type="text" placeholder="거래소/지갑 이름 검색 (예: 업비트, 바이낸스, 메타마스크...)" oninput="searchExchange()">
+            </div>
+            <div class="search-guide" id="searchGuide">검색어를 입력하세요.</div>
+        </div>
+        <div class="table-responsive">
+            <table>
+                <colgroup>
+                    <col style="width: 100px;">
+                    <col style="width: 100px;">
+                    <col style="width: 150px;">
+                    <col style="width: 80px;">
+                    <col style="width: 80px;">
+                    <col style="width: 400px;">
+                    <col style="width: 40px;">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>분류</th>
+                        <th>거래소/지갑명</th>
+                        <th>100만원 미만 출금 주소 등록 필요</th>
+                        <th>입금 처리 방식</th>
+                        <th>출금 처리 방식</th>
+                        <th>보류/반환/신청 필요조건</th>
+                        <th>비고</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">업비트(Upbit)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">코인원(Coinone)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">코빗(Korbit)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">헥슬란트(Hexlant)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">플라이빗(Flybit)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">한국디지털자산수탁(KDAC)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">고팍스(Gopax)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">비블록(Beeblock)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">프라뱅(Prabang)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">에이프로빗(Aprobit)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">포블게이트(FOBLGATE)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">보라비트(Borabit)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">BTX(비트키지갑)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">코어닥스(CoreDAX)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">메이코인(Paycoin)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">인피니브록(InfinitBlock)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>국내</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">HTX(HTX)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>API 사용으로 인해 트래블룰 전문 수신이 되지 않는 경우  
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>해외</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">빙엑스(BingX)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>API 사용으로 인해 트래블룰 전문 수신이 되지 않는 경우  
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>해외</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">비트겟(Bitget)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>API 사용으로 인해 트래블룰 전문 수신이 되지 않는 경우  
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>해외</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">플립스터(Flipster)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>해외</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">엘뱅크(LBank)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>해외</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">바이비트(Bybit)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>해외</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">WOO X(WOO X)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>해외</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">오케이엑스(OKX)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>API 사용으로 인해 트래블룰 전문 수신이 되지 않는 경우  
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>해외</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소</span></td><td class="name-cell">크립토닷컴 코리아(Crypto.com Korea)</td><td>불필요</td><td>자동 입금</td><td>자동 출금</td><td>입금 시 간헐적으로 트래블룰 전문 수신이 늦어지는 경우
+ <br> 입금 신청 후 송금 내역과 송금 거래소의 회원정보 화면을 제출 필요</td><td>해외</td></tr>
+                    <tr><td><span class="badge badge-travel">트래블룰 연동 거래소<br>[본인계정 확인 서비스]</span></td><td class="name-cell">바이낸스(Binance)</td><td>불필요</td><td>자동 입금(본인)/타인시 반환</td><td>자동 출금</td><td>타인명 입금시 반환 처리</td><td>해외</td></tr>
+                    <tr><td><span class="badge badge-white">화이트리스트 거래소</span></td><td class="name-cell">코인베이스(Coinbase)</td><td>필요</td><td>자동 입금(화이트리스트 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-white">화이트리스트 거래소</span></td><td class="name-cell">크라켄(Kraken)</td><td>필요</td><td>자동 입금(화이트리스트 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-white">화이트리스트 거래소</span></td><td class="name-cell">라인 비트맥스(Line Bitmax)</td><td>필요</td><td>자동 입금(화이트리스트 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-white">화이트리스트 거래소</span></td><td class="name-cell">코인체크(Coincheck)</td><td>필요</td><td>자동 입금(화이트리스트 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-white">화이트리스트 거래소</span></td><td class="name-cell">비트플라이어(bitFlyer)</td><td>필요</td><td>자동 입금(화이트리스트 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-white">화이트리스트 거래소</span></td><td class="name-cell">제미니(Gemini)</td><td>필요</td><td>자동 입금(화이트리스트 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-white">화이트리스트 거래소</span></td><td class="name-cell">코인리스트프로(Coinlist Pro)</td><td>필요</td><td>자동 입금(화이트리스트 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-white">화이트리스트 거래소</span></td><td class="name-cell">비트뱅크(Bitbank)</td><td>필요</td><td>자동 입금(화이트리스트 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-white">화이트리스트 거래소</span></td><td class="name-cell">라이트빗멕스(LineBitmax)</td><td>필요</td><td>자동 입금(화이트리스트 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-wallet">개인지갑</span></td><td class="name-cell">메타마스크(Metamask)</td><td>필요</td><td>자동 입금(사전 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-wallet">개인지갑</span></td><td class="name-cell">클립(Klip)</td><td>필요</td><td>자동 입금(사전 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-wallet">개인지갑</span></td><td class="name-cell">부리또월렛(Burrito Wallet)</td><td>필요</td><td>자동 입금(사전 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-wallet">개인지갑</span></td><td class="name-cell">도시볼트(Dosi Vault)</td><td>필요</td><td>자동 입금(사전 등록시)</td><td>등록시 출금 가능</td><td>사전 주소 등록 필수<br>필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">쿠코인(KuCoin)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td><td></td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">맥씨(MEXC)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">페멕스(Phemex)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">엑스티닷컴(XT.com)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">비트루(Bitrue)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">지비닷컴(Zb.com)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">비트글로벌(Bitglobal)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">코인더블유(CoinW)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">코인엑스(CoinEX)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">에이에이엑스(AAX)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">주멕스(ZoomEX)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">폴로닉스(Poloniex)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">비트엑스(BTCE)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">비티씨씨(BTCC)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">디지파이넥스(DigiFinex)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">파이넥스(Pionex)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">애플빗(APPLE BIT)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">블로핀(Blofin)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">에이펙스프로(Apex Pro)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">코인캣치(CoinCatch)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">디오엑스(DOEX)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">윅스(WEEX)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-unreg">미신고 거래소</span></td><td class="name-cell">비트마트(BitMart)</td><td>-</td><td>본인 및 타인<br>자산 반환 신청 필요</td><td>출금 불가</td><td>-</td></tr>
+                    <tr><td><span class="badge badge-etc">그 외 VASP</span></td><td class="name-cell">그 외 거래소 및 지갑</td><td>필요(100만원 미만만 출금 가능)</td><td>입금 신청 필요 (제한 금액 초과 시)/타인 자산 반환 신청 필요</td><td>100만원 미만만 주소 등록 후 출금 가능, 100만원 이상 출금 불가</td><td>주소 등록 시 필요 서류<br>① 송금 거래소의 회원 정보<br>- 마이페이지 혹은 회원정보+신분증+전체 화면 캡처본<br>② 입금 주소<br>- 입금주소 보이는 화면+신분증+전체 화면 캡처본</td><td></td></tr>
+                    <!-- 검색 결과 없음 안내 메시지 -->
+                    <tr class="no-result" style="display:none;"><td colspan="7">검색 결과가 없습니다.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html> 

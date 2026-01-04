@@ -1,0 +1,112 @@
+<!-- 헤더 네비게이션 컴포넌트 -->
+<header class="main-header">
+    <div class="header-container">
+        <div class="logo">Multi Chain Explorer</div>
+        <nav class="nav-menu">
+            <a href="/" class="nav-btn">트랜잭션</a>
+            <a href="/stk" class="nav-btn">스테이킹</a>
+            <a href="/compliance" class="nav-btn">입출금</a>
+            <!-- <a href="/mindmap" class="nav-btn">마인드맵</a> -->
+            <a href="/bithumb-test" class="nav-btn">빗썸API</a>
+        </nav>
+    </div>
+</header>
+
+<style>
+.main-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    z-index: 1000;
+}
+.header-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+}
+.logo {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #357abd;
+    letter-spacing: 1px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.nav-menu {
+    display: flex;
+    gap: 16px;
+}
+.nav-btn {
+    text-decoration: none;
+    padding: 8px 18px;
+    border-radius: 5px;
+    background: #4a90e2;
+    color: white;
+    font-size: 1rem;
+    transition: background 0.2s, color 0.2s;
+}
+.nav-btn:hover {
+    background: #357abd !important;
+    color: #fff !important;
+}
+@media (max-width: 768px) {
+    .header-container {
+        padding: 10px 16px;
+    }
+    .logo {
+        font-size: 1.15rem;
+    }
+    .nav-btn {
+        font-size: 0.9rem;
+        padding: 6px 12px;
+    }
+}
+
+@media (max-width: 600px) {
+    .header-container {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 10px 12px;
+    }
+    .nav-menu {
+        gap: 6px;
+        margin-top: 6px;
+        width: 100%;
+        flex-wrap: wrap;
+    }
+    .nav-btn {
+        font-size: 0.85rem;
+        padding: 6px 10px;
+    }
+    .logo {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-container {
+        padding: 8px 10px;
+    }
+    .logo {
+        font-size: 0.9rem;
+        letter-spacing: 0.5px;
+    }
+    .nav-btn {
+        font-size: 0.8rem;
+        padding: 5px 8px;
+    }
+}
+body {
+    padding-top: 80px; /* 헤더 높이만큼 패딩 추가 */
+}
+@media (max-width: 600px) {
+    body {
+        padding-top: 90px; /* 모바일 헤더가 2줄이므로 더 많은 공간 */
+    }
+}
+</style> 

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>빗썸 가상 자산 출금 API 가이드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        .code-block {
+            background: #1a1a1a;
+            color: #e5e5e5;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .highlight { background: #fef3cd; padding: 2px 4px; border-radius: 4px; }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 헤더 -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <h1 class="text-2xl font-bold text-gray-900">🏦 빗썸 가상 자산 출금 API 가이드</h1>
+                <div class="flex space-x-4">
+                    <a href="/bithumb-test" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        🧪 API 테스트하기
+                    </a>
+                    <a href="https://apidocs.bithumb.com" target="_blank" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">
+                        📖 공식 문서
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <!-- 목차 -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4">📋 목차</h2>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <a href="#api-info" class="block p-3 bg-blue-50 rounded-lg hover:bg-blue-100">
+                        <div class="font-semibold">1. API 기본 정보</div>
+                        <div class="text-sm text-gray-600">엔드포인트, 인증 방식</div>
+                    </a>
+                </div>
+                <div>
+                    <a href="#parameters" class="block p-3 bg-green-50 rounded-lg hover:bg-green-100">
+                        <div class="font-semibold">2. 필수 파라미터</div>
+                        <div class="text-sm text-gray-600">출금에 필요한 모든 파라미터</div>
+                    </a>
+                </div>
+                <div>
+                    <a href="#jwt-token" class="block p-3 bg-purple-50 rounded-lg hover:bg-purple-100">
+                        <div class="font-semibold">3. JWT 토큰 생성</div>
+                        <div class="text-sm text-gray-600">핵심 인증 로직</div>
+                    </a>
+                </div>
+                <div>
+                    <a href="#korean-handling" class="block p-3 bg-yellow-50 rounded-lg hover:bg-yellow-100">
+                        <div class="font-semibold">4. 한글 처리 (핵심!)</div>
+                        <div class="text-sm text-gray-600">성공의 열쇠</div>
+                    </a>
+                </div>
+                <div>
+                    <a href="#request" class="block p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100">
+                        <div class="font-semibold">5. HTTP 요청</div>
+                        <div class="text-sm text-gray-600">실제 API 호출</div>
+                    </a>
+                </div>
+                <div>
+                    <a href="#troubleshooting" class="block p-3 bg-red-50 rounded-lg hover:bg-red-100">
+                        <div class="font-semibold">6. 문제 해결</div>
+                        <div class="text-sm text-gray-600">주요 에러 및 해결책</div>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 1. API 기본 정보 -->
+        <section id="api-info" class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <span class="bg-blue-100 text-blue-800 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold mr-3">1</span>
+                API 기본 정보
+            </h2>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse border border-gray-300">
+                    <thead>
+                        <tr class="bg-gray-50">
+                            <th class="border border-gray-300 px-4 py-2 text-left">항목</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">값</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="border border-gray-300 px-4 py-2 font-semibold">엔드포인트</td>
+                            <td class="border border-gray-300 px-4 py-2"><code class="bg-gray-100 px-2 py-1 rounded">POST /v1/withdraws/coin</code></td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 px-4 py-2 font-semibold">기본 URL</td>
+                            <td class="border border-gray-300 px-4 py-2"><code class="bg-gray-100 px-2 py-1 rounded">https://api.bithumb.com</code></td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 px-4 py-2 font-semibold">인증 방식</td>
+                            <td class="border border-gray-300 px-4 py-2">JWT (HS256)</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 px-4 py-2 font-semibold">Content-Type</td>
+                            <td class="border border-gray-300 px-4 py-2"><code class="bg-gray-100 px-2 py-1 rounded">application/json</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 2. 필수 파라미터 -->
+        <section id="parameters" class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <span class="bg-green-100 text-green-800 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold mr-3">2</span>
+                필수 파라미터
+            </h2>
+            
+            <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 class="font-bold text-lg mb-2">📝 예시 파라미터</h3>
+                <pre class="code-block p-4 text-sm"><code>{
+  "currency": "USDT",           // 출금할 화폐 코드
+  "net_type": "TRX",            // 출금 네트워크
+  "amount": 3,                  // 출금 수량
+  "address": "TW123aADADA7yKCVA73nLMYQcQKRwSaf7cK",  // 출금 주소
+  "exchange_name": "upbit",     // 출금 거래소명
+  "receiver_type": "personal",  // 수취인 타입 (personal/corporation)
+  "receiver_ko_name": "임현성", // 수취인 한글명 ⭐
+  "receiver_en_name": "IM HYEONSEONG"  // 수취인 영문명 ⭐
+}</code></pre>
+            </div>
+
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                <div class="flex">
+                    <div class="ml-3">
+                        <p class="text-sm text-yellow-700">
+                            <strong>⚠️ 중요:</strong> <code>receiver_ko_name</code>은 한글 그대로 사용해야 합니다! <code>receiver_ko_name</code>과 <code>receiver_en_name</code>은 시 띄어쓰기 관계 없이 출금 가능합니다.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. JWT 토큰 생성 -->
+        <section id="jwt-token" class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <span class="bg-purple-100 text-purple-800 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold mr-3">3</span>
+                JWT 토큰 생성
+            </h2>
+            
+            <div class="space-y-6">
+                <div>
+                    <h3 class="font-bold text-lg mb-3">🔐 JWT 페이로드 구성</h3>
+                    <pre class="code-block p-4 text-sm"><code>payload = {
+    'access_key': api_key,
+    'nonce': str(uuid.uuid4()),
+    'timestamp': round(time.time() * 1000),
+    'query_hash': query_hash,        # 출금 API만 필요
+    'query_hash_alg': 'SHA512'       # 출금 API만 필요
+}</code></pre>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-lg mb-3">🔑 Query Hash 생성 (핵심!)</h3>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <h4 class="font-semibold text-success mb-2">✅ 성공하는 방식</h4>
+                            <pre class="code-block p-4 text-sm"><code># Raw 문자열 방식
+requestBody = dict(**params)
+
+query_parts = []
+for key, value in requestBody.items():
+    query_parts.append(f"{key}={value}")
+raw_query = "&".join(query_parts)
+query = raw_query.encode('utf-8')
+
+hash = hashlib.sha512()
+hash.update(query)
+query_hash = hash.hexdigest()</code></pre>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-error mb-2">❌ 실패하는 방식</h4>
+                            <pre class="code-block p-4 text-sm"><code># URL 인코딩 방식 (공식 문서)
+from urllib.parse import urlencode
+
+query = urlencode(requestBody).encode()
+# ❌ 한글이 %EC%9E%84... 로 변환됨
+# ❌ 띄어쓰기가 + 로 변환됨</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. 한글 처리 (핵심!) -->
+        <section id="korean-handling" class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <span class="bg-yellow-100 text-yellow-800 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold mr-3">4</span>
+                한글 처리 (성공의 핵심!) 🔥
+            </h2>
+            
+            <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+                <div class="flex">
+                    <div class="ml-3">
+                        <p class="text-sm text-red-700">
+                            <strong>🚨 핵심 발견:</strong> 빗썸 API는 공식 문서와 달리 <strong>한글과 띄어쓰기를 URL 인코딩하면 안 됩니다!</strong>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto mb-6">
+                <table class="w-full border-collapse border border-gray-300">
+                    <thead>
+                        <tr class="bg-gray-50">
+                            <th class="border border-gray-300 px-4 py-2">구분</th>
+                            <th class="border border-gray-300 px-4 py-2">공식 문서 방식</th>
+                            <th class="border border-gray-300 px-4 py-2">실제 작동 방식</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="border border-gray-300 px-4 py-2 font-semibold">방식</td>
+                            <td class="border border-gray-300 px-4 py-2"><code>urlencode()</code> 사용</td>
+                            <td class="border border-gray-300 px-4 py-2 success font-bold">Raw 문자열 직접 생성</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 px-4 py-2 font-semibold">한글 처리</td>
+                            <td class="border border-gray-300 px-4 py-2 error"><code>%EC%9E%84%ED%98%84%EC%84%B1</code></td>
+                            <td class="border border-gray-300 px-4 py-2 success"><code>임현성</code> (원본 유지)</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 px-4 py-2 font-semibold">띄어쓰기</td>
+                            <td class="border border-gray-300 px-4 py-2 error"><code>IM+HYEONSEONG</code></td>
+                            <td class="border border-gray-300 px-4 py-2 success"><code>IM HYEONSEONG</code> (원본 유지)</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gray-300 px-4 py-2 font-semibold">결과</td>
+                            <td class="border border-gray-300 px-4 py-2 error">❌ invalid_query_payload</td>
+                            <td class="border border-gray-300 px-4 py-2 success">✅ 201 Success</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bg-green-50 border-l-4 border-green-400 p-4">
+                <div class="flex">
+                    <div class="ml-3">
+                        <p class="text-sm text-green-700">
+                            <strong>💡 핵심 포인트:</strong> 
+                            <code>receiver_ko_name=임현성&receiver_en_name=IM HYEONSEONG</code> 
+                            형태로 Raw 문자열을 만들어야 성공합니다!
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. HTTP 요청 -->
+        <section id="request" class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <span class="bg-indigo-100 text-indigo-800 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold mr-3">5</span>
+                HTTP 요청 전송
+            </h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <h3 class="font-bold text-lg mb-3">📤 완전한 요청 예시</h3>
+                    <pre class="code-block p-4 text-sm"><code># 헤더 설정
+headers = {
+    'Authorization': f'Bearer {jwt_token}',
+    'Content-Type': 'application/json'
+}
+
+# 요청 데이터 (JSON 형태)
+json_data = json.dumps(requestBody)
+
+# POST 요청 전송
+response = await client.post(
+    'https://api.bithumb.com/v1/withdraws/coin', 
+    headers=headers, 
+    data=json_data
+)</code></pre>
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-lg mb-3">✅ 성공 응답 예시 (201)</h3>
+                    <pre class="code-block p-4 text-sm"><code>{
+  "type": "withdraw",
+  "uuid": "2511231977",
+  "currency": "USDT",
+  "net_type": "TRX", 
+  "state": "processing",
+  "created_at": "2025-08-07T03:24:31+09:00",
+  "amount": "3.000000",
+  "fee": "0.000000",
+  "krw_amount": "4176"
+}</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. 문제 해결 -->
+        <section id="troubleshooting" class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <span class="bg-red-100 text-red-800 rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold mr-3">6</span>
+                문제 해결 가이드
+            </h2>
+            
+            <div class="space-y-6">
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse border border-gray-300">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="border border-gray-300 px-4 py-2 text-left">에러</th>
+                                <th class="border border-gray-300 px-4 py-2 text-left">원인</th>
+                                <th class="border border-gray-300 px-4 py-2 text-left">해결책</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="border border-gray-300 px-4 py-2">
+                                    <code class="bg-red-100 text-red-800 px-2 py-1 rounded">invalid_query_payload</code>
+                                </td>
+                                <td class="border border-gray-300 px-4 py-2">한글/띄어쓰기 URL 인코딩</td>
+                                <td class="border border-gray-300 px-4 py-2 success">Raw 문자열 방식 사용</td>
+                            </tr>
+                            <tr>
+                                <td class="border border-gray-300 px-4 py-2">
+                                    <code class="bg-red-100 text-red-800 px-2 py-1 rounded">request_fail</code><br>
+                                    <small class="text-gray-600">수취인 정보 누락</small>
+                                </td>
+                                <td class="border border-gray-300 px-4 py-2">수취인 정보 미포함</td>
+                                <td class="border border-gray-300 px-4 py-2 success">
+                                    <code>receiver_ko_name</code>,<br>
+                                    <code>receiver_en_name</code> 추가
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="border border-gray-300 px-4 py-2">
+                                    <code class="bg-red-100 text-red-800 px-2 py-1 rounded">jwt_verification</code>
+                                </td>
+                                <td class="border border-gray-300 px-4 py-2">잘못된 JWT 토큰</td>
+                                <td class="border border-gray-300 px-4 py-2 success">API Key/Secret Key 확인</td>
+                            </tr>
+                            <tr>
+                                <td class="border border-gray-300 px-4 py-2">
+                                    <code class="bg-red-100 text-red-800 px-2 py-1 rounded">NotAllowIP</code>
+                                </td>
+                                <td class="border border-gray-300 px-4 py-2">IP 미등록</td>
+                                <td class="border border-gray-300 px-4 py-2 success">빗썸에서 IP 화이트리스트 등록</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
+                    <div class="flex">
+                        <div class="ml-3">
+                            <p class="text-sm text-blue-700">
+                                <strong>🔧 디버깅 팁:</strong> 
+                                로그에서 <code>Raw Query String</code>과 <code>JSON Data</code>를 비교해보세요. 
+                                한글과 띄어쓰기가 동일하게 처리되어야 성공합니다!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 요약 -->
+        <section class="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4 text-center">🎯 핵심 요약</h2>
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="text-center">
+                    <div class="text-4xl mb-2">🔑</div>
+                    <h3 class="font-bold mb-2">Raw 문자열 방식</h3>
+                    <p class="text-sm text-gray-600">urlencode() 대신 직접 문자열 조합</p>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl mb-2">🇰🇷</div>
+                    <h3 class="font-bold mb-2">한글 그대로</h3>
+                    <p class="text-sm text-gray-600">임현성 → 변환하지 않고 그대로</p>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl mb-2">🎯</div>
+                    <h3 class="font-bold mb-2">띄어쓰기 유지</h3>
+                    <p class="text-sm text-gray-600">IM HYEONSEONG → + 변환 안 함</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 푸터 -->
+        <footer class="text-center py-8 text-gray-600">
+            <p>💡 이 가이드가 도움이 되셨나요? <a href="/bithumb-test" class="text-blue-600 hover:underline">직접 테스트해보세요!</a></p>
+            <p class="text-sm mt-2">빗썸 API 가상 자산 출금 완전 정복 가이드 v1.0</p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -1,0 +1,163 @@
+# 환경 변수 및 비밀 정보 (절대 Git에 올리면 안 됨!)
+.env
+.env.local
+.env.production
+.env.development
+.env.*
+*.key
+*.pem
+*.crt
+*.p12
+secrets/
+credentials/
+config.local.*
+*.secret
+*_secret.*
+*_secrets.*
+
+# MongoDB 연결 정보
+mongodb_uri.txt
+mongodb_config.*
+*.mongo
+
+# API 키 및 토큰
+*_api_key.*
+*_token.*
+api_keys.*
+tokens.*
+
+# 설정 파일 (민감 정보 포함 가능)
+chatbot/configuration.local.py
+src/services/chain_configs.local.py
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 가상환경
+virtualenv/
+venv/
+ENV/
+env/
+.venv/
+env.bak/
+venv.bak/
+
+# IDE 및 에디터
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# 로그 파일
+*.log
+logs/
+*.log.*
+
+# 데이터베이스
+*.db
+*.sqlite
+*.sqlite3
+db.sqlite3
+tx_cache.json
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# 운영 체제
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# 임시 파일
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# 테스트 및 커버리지
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# 패키지
+*.whl
+
+# 프로젝트 특정
+wordpress_data/
+certbot_data/
+nginx_logs/
+nginx_html/
+docs/
+
+# 설정 파일 (민감 정보 포함 가능)
+# nginx.conf는 템플릿으로 관리하되, 실제 프로덕션 설정은 제외
+wordpress/nginx/nginx.conf.production
+wordpress/nginx/nginx.conf.local
+docker-compose.override.yml
+docker-compose.local.yml
+
+# AWS 및 배포 관련
+.aws/
+*.pem
+appspec.yml.backup
+
+# 캐시
+.cache/
+*.cache
+
+# Cursor/Agent 관련 (자동 생성)
+agent-tools/
+
+# 런타임 생성 파일
+*.pid
+*.sock
+
+# 로컬 테스트
+.local/
+local_*.py
+
+# Coverage 리포트
+coverage.xml
+*.cover
+.hypothesis/
+.nox/
+.ruff_cache/
