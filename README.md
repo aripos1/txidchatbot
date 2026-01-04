@@ -432,7 +432,6 @@ LANGSMITH_PROJECT=multi-chain-tx-lookup
 
 LangSmith 대시보드에서 각 노드의 실행 과정을 시각화할 수 있습니다.
 
-자세한 디버그 가이드는 [docs/DEBUG_MODE_GUIDE.md](docs/DEBUG_MODE_GUIDE.md)를 참고하세요.
 
 ## 참고 및 출처
 
@@ -480,13 +479,6 @@ LangSmith 대시보드에서 각 노드의 실행 과정을 시각화할 수 있
 - [FastAPI 공식 문서](https://fastapi.tiangolo.com/)
 - [MongoDB Atlas 벡터 검색 가이드](https://www.mongodb.com/docs/atlas/atlas-vector-search/)
 
-### 프로젝트 문서
-
-- [전체 개발 문서](docs/docs.md)
-- [Router-Specialist 아키텍처](docs/ROUTER_SPECIALIST_ARCHITECTURE.md)
-- [스트리밍 개선 사항](docs/STREAMING_IMPROVEMENTS.md)
-- [LangGraph 1.0 업그레이드](docs/LANGGRAPH_1.0_REVIEW.md)
-- [디버그 모드 가이드](docs/DEBUG_MODE_GUIDE.md)
 
 ## 업데이트 정보
 
