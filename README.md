@@ -248,6 +248,10 @@ python scripts/data/import_faq.py
 
 ## 사용법
 
+### 프로덕션 환경 접속
+
+**챗봇 사용**: [https://txid.shop/chat](https://txid.shop/chat)에 접속하여 챗봇을 사용할 수 있습니다.
+
 ### 로컬 개발 환경에서 실행
 
 #### 옵션 1: FastAPI 직접 실행 (권장)
