@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    {# Google AdSense 메타 태그 #}
+    <meta name="google-adsense-account" content="ca-pub-5240424281235281">
+    
+    {# SEO 메타 태그 #}
+    <meta name="description" content="{% block meta_description %}31개 블록체인 네트워크의 트랜잭션을 한 번에 조회하고, AI 챗봇을 통해 블록체인 정보를 얻어보세요. Bitcoin, Ethereum, BNB Smart Chain, Polygon 등 다양한 체인을 지원합니다.{% endblock %}">
+    <meta name="keywords" content="블록체인, 트랜잭션 조회, Bitcoin, Ethereum, BNB Smart Chain, Polygon, Arbitrum, Solana, Tron, 암호화폐, 가상자산, blockchain explorer, multi-chain">
+    <meta name="author" content="Multi Chain Explorer">
+    
+    {# Open Graph 메타 태그 (소셜 미디어 공유) #}
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{% block og_title %}블록체인 트랜잭션 탐색기 - Multi Chain Explorer{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}31개 블록체인 네트워크의 트랜잭션을 한 번에 조회하는 무료 서비스{% endblock %}">
+    <meta property="og:url" content="{% block og_url %}https://txid.shop{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}https://txid.shop/og-image.png{% endblock %}">
+    <meta property="og:site_name" content="Multi Chain Explorer">
+    <meta property="og:locale" content="ko_KR">
+    
+    {# Twitter Card 메타 태그 #}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% block twitter_title %}블록체인 트랜잭션 탐색기 - Multi Chain Explorer{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}31개 블록체인 네트워크의 트랜잭션을 한 번에 조회하는 무료 서비스{% endblock %}">
+    <meta name="twitter:image" content="{% block twitter_image %}https://txid.shop/og-image.png{% endblock %}">
+    
+    {# Favicon #}
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    
+    {# Canonical URL #}
+    <link rel="canonical" href="{% block canonical_url %}https://txid.shop{{ request.url.path }}{% endblock %}">
+    
+    {# Robots 메타 태그 #}
+    <meta name="robots" content="{% block robots %}index, follow{% endblock %}">
+    <meta name="googlebot" content="index, follow">
+    
+    {# 언어 설정 #}
+    <meta http-equiv="content-language" content="ko">
+    
+    {# Title #}
+    <title>{% block title %}블록체인 트랜잭션 탐색기{% endblock %} - Multi Chain Explorer</title>
+    
+    {# External Resources #}
+    {% block external_resources %}
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    {% endblock %}
+    
+    {# Google AdSense 스크립트 #}
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5240424281235281" crossorigin="anonymous"></script>
+    
+    {# Navigation #}
+    {% include "nav.html" %}
+    
+    {# Additional Head Content #}
+    {% block head %}{% endblock %}
+    
+    {# Main Stylesheet #}
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+    <link rel="stylesheet" href="/static/css/adsense.css">
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    {# Skip to main content (접근성) #}
+    <a href="#main-content" class="skip-link">메인 콘텐츠로 이동</a>
+    
+    {# Main Content #}
+    <main id="main-content" class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+    
+    {# Footer #}
+    {% include "footer.html" %}
+    
+    {# Scripts #}
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/adsense.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
+

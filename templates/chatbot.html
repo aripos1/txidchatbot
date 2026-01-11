@@ -1,1590 +1,1093 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>블록체인 챗봇 - Multi-Chain Transaction Lookup</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
-            height: 100dvh; /* 동적 viewport 높이 (모바일 주소창 고려) */
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            overflow: hidden; /* 스크롤 방지 */
-            position: fixed; /* 모바일에서 화면 고정 */
-            width: 100%;
-            top: 0;
-            left: 0;
-            touch-action: pan-y; /* 수직 스크롤만 허용 */
-        }
-
-        .chat-container {
-            width: 100%;
-            max-width: 900px;
-            height: 90vh;
-            height: 90dvh; /* 동적 viewport 높이 */
-            max-height: calc(100vh - 40px);
-            max-height: calc(100dvh - 40px);
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .chat-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .chat-header h1 {
-            font-size: 24px;
-            font-weight: 600;
-        }
-
-        .clear-btn {
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
-
-        .clear-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 30px;
-            background: #f8f9fa;
-            scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch; /* iOS 부드러운 스크롤 */
-            overscroll-behavior: contain; /* 스크롤 체이닝 방지 */
-        }
-
-        .message {
-            margin-bottom: 24px;
-            display: flex;
-            flex-direction: column;
-            animation: fadeIn 0.3s;
-        }
-
-        .message:last-child {
-            margin-bottom: 0;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .message.user {
-            align-items: flex-end;
-        }
-
-        .message.assistant {
-            align-items: flex-start;
-        }
-
-        .message-bubble {
-            max-width: 75%;
-            width: fit-content;
-            padding: 18px 22px;
-            border-radius: 18px;
-            word-wrap: break-word;
-            word-break: break-word;
-            line-height: 1.7;
-            font-size: 15px;
-        }
-
-        .message.user .message-bubble {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-bottom-right-radius: 4px;
-            font-weight: 500;
-        }
-
-        .message.assistant .message-bubble {
-            background: white;
-            color: #2c3e50;
-            border: 1px solid #e0e0e0;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        }
-
-        /* 메시지 내 텍스트 스타일 개선 */
-        .message.assistant .message-bubble p {
-            margin-bottom: 12px;
-        }
-
-        .message.assistant .message-bubble p:last-child {
-            margin-bottom: 0;
-        }
-
-        .message.assistant .message-bubble ul,
-        .message.assistant .message-bubble ol {
-            margin: 12px 0;
-            padding-left: 24px;
-        }
-
-        .message.assistant .message-bubble li {
-            margin-bottom: 6px;
-        }
-
-        .message.assistant .message-bubble strong {
-            color: #1a252f;
-            font-weight: 600;
-        }
-
-        .message.assistant .message-bubble a {
-            color: #667eea;
-            text-decoration: none;
-            border-bottom: 1px solid rgba(102, 126, 234, 0.3);
-            transition: all 0.2s;
-        }
-
-        .message.assistant .message-bubble a:hover {
-            color: #764ba2;
-            border-bottom-color: #764ba2;
-        }
-
-        .message.assistant .message-bubble code {
-            background: #f5f5f5;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            color: #e83e8c;
-        }
-
-        .message.assistant .message-bubble pre {
-            background: #f5f5f5;
-            padding: 12px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 12px 0;
-            border: 1px solid #e0e0e0;
-        }
-
-        .message.assistant .message-bubble pre code {
-            background: none;
-            padding: 0;
-            color: #2c3e50;
-        }
-
-        /* 스트리밍 커서 애니메이션 */
-        .streaming-cursor {
-            display: inline-block;
-            animation: blink 1s step-end infinite;
-            color: #667eea;
-            font-weight: bold;
-        }
-
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0; }
-        }
-
-        /* 노드 진행 상태 표시 */
-        .node-status {
-            color: #888;
-            font-style: italic;
-            font-size: 14px;
-        }
-
-        /* 생각하는 과정 영역 */
-        .thinking-process {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 8px 12px;
-            margin-top: 10px;
-            margin-bottom: 0;
-            font-size: 12px;
-            color: #495057;
-            transition: all 0.3s ease;
-            width: 100%;
-            clear: both;
-            align-self: flex-start;
-        }
-
-        .thinking-process.collapsed {
-            max-height: 32px;
-            overflow: hidden;
-        }
-
-        .thinking-process.expanded {
-            max-height: 350px;
-            overflow-y: auto;
-        }
-
-        .thinking-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            user-select: none;
-            padding: 2px 0;
-        }
-
-        .thinking-title {
-            font-weight: 500;
-            color: #6c757d;
-            font-size: 11px;
-        }
-
-        .thinking-toggle {
-            color: #adb5bd;
-            font-size: 10px;
-            transition: transform 0.3s;
-        }
-
-        .thinking-process.expanded .thinking-toggle {
-            transform: rotate(180deg);
-        }
-
-        .thinking-content {
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid #e9ecef;
-        }
-
-        .thinking-step {
-            margin-bottom: 6px;
-            padding: 6px 10px;
-            background: white;
-            border-radius: 6px;
-            border-left: 2px solid #dee2e6;
-            transition: all 0.2s ease;
-        }
-
-        .thinking-step:hover {
-            border-left-color: #667eea;
-            background: #f8f9ff;
-        }
-
-        .thinking-step-title {
-            font-weight: 600;
-            color: #495057;
-            margin-bottom: 3px;
-            font-size: 11px;
-        }
-
-        .thinking-step-content {
-            color: #6c757d;
-            font-size: 11px;
-            line-height: 1.4;
-        }
-
-        .chat-input-container {
-            padding: 20px 30px;
-            background: white;
-            border-top: 1px solid #e0e0e0;
-            flex-shrink: 0;
-        }
-
-        .chat-input-form {
-            display: flex;
-            gap: 10px;
-        }
-
-        .chat-input {
-            flex: 1;
-            padding: 15px 20px;
-            border: 2px solid #e0e0e0;
-            border-radius: 25px;
-            font-size: 16px;
-            outline: none;
-            transition: border-color 0.3s;
-        }
-
-        .chat-input:focus {
-            border-color: #667eea;
-        }
-
-        .send-btn {
-            padding: 15px 30px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 25px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .send-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .send-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .loading {
-            display: flex;
-            gap: 5px;
-            padding: 15px 20px;
-        }
-
-        .loading-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #999;
-            animation: bounce 1.4s infinite ease-in-out;
-        }
-
-        .loading-dot:nth-child(1) {
-            animation-delay: -0.32s;
-        }
-
-        .loading-dot:nth-child(2) {
-            animation-delay: -0.16s;
-        }
-
-        @keyframes bounce {
-            0%, 80%, 100% {
-                transform: scale(0);
-            }
-            40% {
-                transform: scale(1);
-            }
-        }
-
-        .empty-state {
-            text-align: center;
-            color: #999;
-            padding: 60px 20px;
-        }
-
-        .empty-state h2 {
-            margin-bottom: 10px;
-            color: #666;
-        }
-
-        .empty-state p {
-            font-size: 14px;
-        }
-
-        /* 스크롤바 스타일링 */
-        .chat-messages::-webkit-scrollbar {
-            width: 10px;
-        }
-
-        .chat-messages::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-
-        .chat-messages::-webkit-scrollbar-thumb {
-            background: #ccc;
-            border-radius: 10px;
-            border: 2px solid #f1f1f1;
-        }
-
-        .chat-messages::-webkit-scrollbar-thumb:hover {
-            background: #999;
-        }
-
-        /* 반응형 디자인 */
-        @media (max-width: 768px) {
-            body {
-                padding: 0;
-                padding-bottom: env(safe-area-inset-bottom, 0px);
-                height: 100vh;
-                height: 100dvh;
-            }
-
-            .chat-container {
-                height: 100vh;
-                height: 100dvh;
-                max-height: 100vh;
-                max-height: 100dvh;
-                border-radius: 0;
-                width: 100%;
-                padding-bottom: env(safe-area-inset-bottom, 0px);
-            }
-
-            .message-bubble {
-                max-width: 85%;
-                padding: 14px 18px;
-                font-size: 14px;
-            }
-
-            .chat-messages {
-                padding: 20px;
-                padding-bottom: 100px; /* 입력창 공간 확보 */
-                margin-bottom: env(safe-area-inset-bottom, 0px);
-            }
-
-            .chat-header {
-                padding: 16px 20px;
-                padding-top: max(16px, calc(16px + env(safe-area-inset-top, 0px)));
-            }
-
-            .chat-header h1 {
-                font-size: 20px;
-            }
-
-            .chat-input-container {
-                padding: 12px 16px;
-                padding-bottom: max(12px, calc(12px + env(safe-area-inset-bottom, 0px)));
-                position: sticky;
-                bottom: 0;
-                background: white;
-                z-index: 100;
-                box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-                margin-top: auto;
-            }
-
-            .chat-input {
-                font-size: 16px; /* iOS 줌 방지 */
-                padding: 12px 18px;
-            }
-
-            .send-btn {
-                padding: 12px 24px;
-                font-size: 15px;
-            }
-        }
-
-        /* 모바일 주소창 변화 대응 */
-        @media (max-height: 500px) {
-            .chat-container {
-                height: 100vh;
-                height: 100dvh;
-            }
-        }
-
-        /* iOS Safari 및 모바일 브라우저 하단 UI 대응 */
-        @supports (padding: max(0px)) {
-            @media (max-width: 768px) {
-                html {
-                    padding-bottom: env(safe-area-inset-bottom, 0px);
-                }
-
-                .chat-input-container {
-                    padding-bottom: max(12px, calc(12px + env(safe-area-inset-bottom, 20px)));
-                    bottom: env(safe-area-inset-bottom, 0px);
-                }
-
-                .chat-messages {
-                    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
-                }
-            }
-        }
-
-        /* 안전 영역이 없는 브라우저를 위한 기본 여백 */
-        @media (max-width: 768px) {
-            .chat-input-container {
-                padding-bottom: calc(12px + 20px); /* 기본 20px 여백 추가 */
-            }
-            
-            .chat-messages {
-                padding-bottom: 120px; /* 입력창 + 여백 */
-            }
-        }
-
-        /* 선택된 텍스트 스타일 */
-        ::selection {
-            background: rgba(102, 126, 234, 0.3);
-        }
-    </style>
-</head>
-<body>
-    <div class="chat-container">
-        <div class="chat-header">
-            <h1>🤖 블록체인 챗봇</h1>
-            <button class="clear-btn" onclick="clearChat()">대화 기록 삭제</button>
-        </div>
-        
-        <div class="chat-messages" id="chatMessages">
-            <div class="empty-state">
-                <h2>안녕하세요! 👋</h2>
-                <p>블록체인과 빗썸 거래소에 관련된 질문을 해주세요.</p>
-            </div>
-        </div>
-        
-        <div class="chat-input-container">
-            <form class="chat-input-form" onsubmit="sendMessage(event)">
-                <input 
-                    type="text" 
-                    class="chat-input" 
-                    id="messageInput" 
-                    placeholder="메시지를 입력하세요..."
-                    autocomplete="off"
-                >
-                <button type="submit" class="send-btn" id="sendBtn">전송</button>
-            </form>
-        </div>
+{% extends "base.html" %}
+
+{% block title %}블록체인 AI 챗봇{% endblock %}
+
+{% block meta_description %}블록체인과 빗썸 거래소 정보를 제공하는 AI 챗봇. 트랜잭션 조회, FAQ 검색, 블록체인 관련 질문에 답변합니다.{% endblock %}
+
+{% block og_title %}블록체인 AI 챗봇 - Multi Chain Explorer{% endblock %}
+{% block og_description %}블록체인과 빗썸 거래소 정보를 제공하는 AI 챗봇{% endblock %}
+{% block og_url %}https://txid.shop/chat{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/chatbot.css">
+<style>
+/* 추가 챗봇 전용 스타일 */
+.thinking-process {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color-light);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin: var(--space-md) 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-base);
+}
+
+.thinking-process.collapsed .thinking-content {
+    display: none;
+}
+
+.thinking-process.expanded .thinking-content {
+    display: block;
+}
+
+.thinking-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-sm);
+}
+
+.thinking-title {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.thinking-toggle {
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+    transition: transform var(--transition-base);
+}
+
+.thinking-step {
+    margin-bottom: var(--space-md);
+    padding-bottom: var(--space-md);
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+.thinking-step:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.thinking-step-title {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary);
+    margin-bottom: var(--space-xs);
+}
+
+.thinking-step-content {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+}
+
+.empty-state {
+    text-align: center;
+    padding: var(--space-3xl) var(--space-lg);
+    color: var(--text-secondary);
+}
+
+.empty-state h2 {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+}
+
+.empty-state p {
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-relaxed);
+}
+
+.send-btn {
+    padding: var(--space-md) var(--space-xl);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    color: var(--text-inverse);
+    border: none;
+    border-radius: var(--radius-lg);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: all var(--transition-base);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    white-space: nowrap;
+    box-shadow: var(--shadow-sm);
+}
+
+.send-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.send-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@media (max-width: 1024px) {
+    .chatbot-layout {
+        grid-template-columns: 1fr;
+    }
+    
+    .chatbot-sidebar {
+        order: -1;
+        position: relative;
+        top: 0;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chatbot-wrapper">
+    <!-- AdSense: 헤더 아래 배너 광고 (728x90) -->
+    <div class="adsense-container adsense-header-banner">
+        <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
     </div>
 
-    <script>
-        // 노드 표시 이름 매핑 (공통)
-        const NODE_DISPLAY_NAMES = {
-            "router": "🔀 라우팅 중...",
-            "simple_chat_specialist": "💬 응답 생성 중...",
-            "faq_specialist": "📚 FAQ 검색 중...",
-            "transaction_specialist": "🔍 트랜잭션 조회 중...",
-            "planner": "📋 검색 계획 중...",
-            "researcher": "🔎 웹 검색 중...",
-            "grader": "📊 결과 평가 중...",
-            "writer": "✍️ 응답 작성 중...",
-            "intent_clarifier": "🤔 의도 확인 중...",
-            "save_response": "💾 저장 중..."
-        };
-
-        // 노드 이름을 "생각하는 과정" 제목으로 변환
-        function getNodeStepTitle(nodeName, displayName) {
-            const nodeTitleMap = {
-                'router': '🔀 라우팅',
-                'faq_specialist': '📚 FAQ 검색',
-                'transaction_specialist': '🔍 트랜잭션 조회',
-                'planner': '📋 검색 계획 수립',
-                'researcher': '🔎 웹 검색',
-                'grader': '📊 결과 평가',
-                'writer': '✍️ 응답 작성',
-                'intent_clarifier': '🤔 의도 확인',
-                'save_response': '💾 저장'
-            };
-            
-            return nodeTitleMap[nodeName] || displayName || null;
-        }
-
-        // "생각하는 과정" 제목에서 노드 이름 추출
-        function getNodeNameFromStep(stepTitle) {
-            const titleToNodeMap = {
-                '🔀 라우팅': 'router',
-                '📚 FAQ 검색': 'faq_specialist',
-                '🔍 트랜잭션 조회': 'transaction_specialist',
-                '📋 검색 계획 수립': 'planner',
-                '🔎 웹 검색': 'researcher',
-                '📊 결과 평가': 'grader',
-                '✍️ 응답 작성': 'writer',
-                '🤔 의도 확인': 'intent_clarifier',
-                '💾 저장': 'save_response'
-            };
-            
-            return titleToNodeMap[stepTitle] || null;
-        }
-
-
-
-
-        // JSON을 사용자 친화적인 "생각하는 과정"으로 변환
-        function parseThinkingProcess(jsonText) {
-            try {
-                const json = JSON.parse(jsonText);
-                const steps = [];
-                
-                // Planner 노드 정보
-                if (json.search_queries || json.research_plan || json.priority) {
-                    steps.push({
-                        title: '📋 검색 계획 수립',
-                        content: json.research_plan || '검색 계획을 수립하고 있습니다.',
-                        queries: json.search_queries || []
-                    });
-                }
-                
-                // Grader 노드 정보
-                if (json.score !== undefined || json.is_sufficient !== undefined || json.feedback) {
-                    const score = json.score || 0;
-                    const isSufficient = json.is_sufficient || false;
-                    const feedback = json.feedback || '';
-                    
-                    steps.push({
-                        title: `📊 결과 평가 (점수: ${(score * 100).toFixed(0)}%)`,
-                        content: feedback || (isSufficient ? '검색 결과가 충분합니다.' : '추가 검색이 필요합니다.'),
-                        score: score,
-                        isSufficient: isSufficient
-                    });
-                }
-                
-                return steps;
-            } catch (e) {
-                return [];
-            }
-        }
-
-        // "생각하는 과정" UI 생성 (간소화)
-        function createThinkingProcessUI(steps) {
-            // 내용이 있는 단계만 필터링
-            const stepsWithContent = steps.filter(step => step.content && step.content.trim());
-            
-            if (stepsWithContent.length === 0) return null;
-            
-            const container = document.createElement('div');
-            container.className = 'thinking-process collapsed';
-            
-            const header = document.createElement('div');
-            header.className = 'thinking-header';
-            header.innerHTML = `
-                <div class="thinking-title">
-                    <span>🤔 생각하는 과정 (${stepsWithContent.length}단계)</span>
+    <!-- 2-Column Layout (챗봇 + 사이드바) -->
+    <div class="chatbot-layout">
+        <!-- Main Chatbot Area -->
+        <div class="chatbot-main">
+            <div class="chat-container card fade-in">
+                <div class="chat-header">
+                    <h1>🤖 블록체인 챗봇</h1>
+                    <button class="clear-btn" onclick="clearChat()">대화 기록 삭제</button>
                 </div>
-                <span class="thinking-toggle">▼</span>
-            `;
-            
-            const content = document.createElement('div');
-            content.className = 'thinking-content';
-            
-            stepsWithContent.forEach(step => {
-                const stepDiv = document.createElement('div');
-                stepDiv.className = 'thinking-step';
                 
-                let stepHTML = `<div class="thinking-step-title">${step.title}</div>`;
-                if (step.content) {
-                    stepHTML += `<div class="thinking-step-content">${step.content}</div>`;
-                }
+                <div class="chat-messages" id="chatMessages">
+                    <div class="empty-state">
+                        <h2>안녕하세요! 👋</h2>
+                        <p>블록체인과 빗썸 거래소에 관련된 질문을 해주세요.</p>
+                        <p style="margin-top: var(--space-md); font-size: var(--font-size-sm);">
+                            트랜잭션 조회, FAQ 검색, 블록체인 정보 등 무엇이든 물어보세요.
+                        </p>
+                    </div>
+                </div>
                 
-                stepDiv.innerHTML = stepHTML;
-                content.appendChild(stepDiv);
-            });
-            
-            container.appendChild(header);
-            container.appendChild(content);
-            
-            // 토글 기능
-            header.addEventListener('click', () => {
-                if (container.classList.contains('collapsed')) {
-                    container.classList.remove('collapsed');
-                    container.classList.add('expanded');
-                    header.querySelector('.thinking-toggle').textContent = '▲';
-                } else {
-                    container.classList.remove('expanded');
-                    container.classList.add('collapsed');
-                    header.querySelector('.thinking-toggle').textContent = '▼';
-                }
-            });
-            
-            return container;
-        }
+                <div class="chat-input-container">
+                    <form class="chat-input-form" onsubmit="sendMessage(event)">
+                        <input 
+                            type="text" 
+                            class="chat-input" 
+                            id="messageInput" 
+                            placeholder="메시지를 입력하세요..."
+                            autocomplete="off"
+                        >
+                        <button type="submit" class="send-btn" id="sendBtn">전송</button>
+                    </form>
+                </div>
+            </div>
 
-        // 세션 ID 생성 (브라우저 세션당 고유)
-        let sessionId = sessionStorage.getItem('chatSessionId') || generateSessionId();
-        if (!sessionStorage.getItem('chatSessionId')) {
-            sessionStorage.setItem('chatSessionId', sessionId);
-        }
+            <!-- AdSense: 챗봇 아래 인라인 배너 광고 -->
+            <div class="adsense-container adsense-inline-banner" style="margin-top: var(--space-xl);">
+                <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
+            </div>
+        </div>
 
-        function generateSessionId() {
-            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        }
+        <!-- Sidebar -->
+        <aside class="chatbot-sidebar">
+            <!-- Quick Links Card -->
+            <div class="card fade-in">
+                <h3 class="section-title" style="margin-bottom: var(--space-md); padding-bottom: var(--space-sm); border-bottom: 2px solid var(--border-color-light);">
+                    빠른 링크
+                </h3>
+                <nav style="display: flex; flex-direction: column; gap: var(--space-sm);">
+                    <a href="/" class="btn btn-secondary" style="justify-content: flex-start;">
+                        <span>🔍</span>
+                        <span>트랜잭션 조회</span>
+                    </a>
+                    <a href="https://coinmarketcap.com/ko/" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="justify-content: flex-start;">
+                        <span>📊</span>
+                        <span>CoinMarketCap</span>
+                    </a>
+                </nav>
+            </div>
 
-        // 페이지 로드 시 대화 기록 불러오기
-        // 중복 로드 방지 플래그
-        let isHistoryLoaded = false;
+            <!-- AdSense: 사이드바 상단 사각형 광고 (300x250) -->
+            <div class="adsense-container adsense-sidebar">
+                <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
+                <!-- 데스크톱: 300x250 또는 300x600 -->
+            </div>
+
+            <!-- AdSense: 사이드바 중간 사각형 광고 (300x250) -->
+            <div class="adsense-container adsense-sidebar adsense-vertical">
+                <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
+                <!-- 데스크톱: 300x600 -->
+            </div>
+        </aside>
+    </div>
+
+    <!-- AdSense: 푸터 위 배너 광고 -->
+    <div class="adsense-container adsense-inline-banner" style="margin-top: var(--space-3xl);">
+        <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 기존 chatbot.html의 모든 JavaScript 코드를 여기에 포함
+// 노드 표시 이름 매핑 (공통)
+const NODE_DISPLAY_NAMES = {
+    "router": "🔀 라우팅 중...",
+    "simple_chat_specialist": "💬 응답 생성 중...",
+    "faq_specialist": "📚 FAQ 검색 중...",
+    "transaction_specialist": "🔍 트랜잭션 조회 중...",
+    "planner": "📋 검색 계획 중...",
+    "researcher": "🔎 웹 검색 중...",
+    "grader": "📊 결과 평가 중...",
+    "writer": "✍️ 응답 작성 중...",
+    "intent_clarifier": "🤔 의도 확인 중...",
+    "save_response": "💾 저장 중..."
+};
+
+// 노드 이름을 "생각하는 과정" 제목으로 변환
+function getNodeStepTitle(nodeName, displayName) {
+    const nodeTitleMap = {
+        'router': '🔀 라우팅',
+        'faq_specialist': '📚 FAQ 검색',
+        'transaction_specialist': '🔍 트랜잭션 조회',
+        'planner': '📋 검색 계획 수립',
+        'researcher': '🔎 웹 검색',
+        'grader': '📊 결과 평가',
+        'writer': '✍️ 응답 작성',
+        'intent_clarifier': '🤔 의도 확인',
+        'save_response': '💾 저장'
+    };
+    
+    return nodeTitleMap[nodeName] || displayName || null;
+}
+
+// "생각하는 과정" 제목에서 노드 이름 추출
+function getNodeNameFromStep(stepTitle) {
+    const titleToNodeMap = {
+        '🔀 라우팅': 'router',
+        '📚 FAQ 검색': 'faq_specialist',
+        '🔍 트랜잭션 조회': 'transaction_specialist',
+        '📋 검색 계획 수립': 'planner',
+        '🔎 웹 검색': 'researcher',
+        '📊 결과 평가': 'grader',
+        '✍️ 응답 작성': 'writer',
+        '🤔 의도 확인': 'intent_clarifier',
+        '💾 저장': 'save_response'
+    };
+    
+    return titleToNodeMap[stepTitle] || null;
+}
+
+// JSON을 사용자 친화적인 "생각하는 과정"으로 변환
+function parseThinkingProcess(jsonText) {
+    try {
+        const json = JSON.parse(jsonText);
+        const steps = [];
         
-        window.addEventListener('DOMContentLoaded', async () => {
-            if (!isHistoryLoaded) {
-                isHistoryLoaded = true;
-                await loadChatHistory();
-            }
+        // Planner 노드 정보
+        if (json.search_queries || json.research_plan || json.priority) {
+            steps.push({
+                title: '📋 검색 계획 수립',
+                content: json.research_plan || '검색 계획을 수립하고 있습니다.',
+                queries: json.search_queries || []
+            });
+        }
+        
+        // Grader 노드 정보
+        if (json.score !== undefined || json.is_sufficient !== undefined || json.feedback) {
+            const score = json.score || 0;
+            const isSufficient = json.is_sufficient || false;
+            const feedback = json.feedback || '';
+            
+            steps.push({
+                title: `📊 결과 평가 (점수: ${(score * 100).toFixed(0)}%)`,
+                content: feedback || (isSufficient ? '검색 결과가 충분합니다.' : '추가 검색이 필요합니다.'),
+                score: score,
+                isSufficient: isSufficient
+            });
+        }
+        
+        return steps;
+    } catch (e) {
+        return [];
+    }
+}
+
+// "생각하는 과정" UI 생성 (간소화)
+function createThinkingProcessUI(steps) {
+    // 내용이 있는 단계만 필터링
+    const stepsWithContent = steps.filter(step => step.content && step.content.trim());
+    
+    if (stepsWithContent.length === 0) return null;
+    
+    const container = document.createElement('div');
+    container.className = 'thinking-process collapsed';
+    
+    const header = document.createElement('div');
+    header.className = 'thinking-header';
+    header.innerHTML = `
+        <div class="thinking-title">
+            <span>🤔 생각하는 과정 (${stepsWithContent.length}단계)</span>
+        </div>
+        <span class="thinking-toggle">▼</span>
+    `;
+    
+    const content = document.createElement('div');
+    content.className = 'thinking-content';
+    
+    stepsWithContent.forEach(step => {
+        const stepDiv = document.createElement('div');
+        stepDiv.className = 'thinking-step';
+        
+        let stepHTML = `<div class="thinking-step-title">${step.title}</div>`;
+        if (step.content) {
+            stepHTML += `<div class="thinking-step-content">${step.content}</div>`;
+        }
+        
+        stepDiv.innerHTML = stepHTML;
+        content.appendChild(stepDiv);
+    });
+    
+    container.appendChild(header);
+    container.appendChild(content);
+    
+    // 토글 기능
+    header.addEventListener('click', () => {
+        if (container.classList.contains('collapsed')) {
+            container.classList.remove('collapsed');
+            container.classList.add('expanded');
+            header.querySelector('.thinking-toggle').textContent = '▲';
+        } else {
+            container.classList.remove('expanded');
+            container.classList.add('collapsed');
+            header.querySelector('.thinking-toggle').textContent = '▼';
+        }
+    });
+    
+    return container;
+}
+
+// 세션 ID 생성 (브라우저 세션당 고유)
+let sessionId = sessionStorage.getItem('chatSessionId') || generateSessionId();
+if (!sessionStorage.getItem('chatSessionId')) {
+    sessionStorage.setItem('chatSessionId', sessionId);
+}
+
+function generateSessionId() {
+    return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+// 페이지 로드 시 대화 기록 불러오기
+let isHistoryLoaded = false;
+
+window.addEventListener('DOMContentLoaded', async () => {
+    if (!isHistoryLoaded) {
+        isHistoryLoaded = true;
+        await loadChatHistory();
+    }
+});
+
+async function loadChatHistory() {
+    try {
+        const messagesContainer = document.getElementById('chatMessages');
+        messagesContainer.innerHTML = '';
+        
+        const response = await fetch(`/api/chat/history/${sessionId}`);
+        const data = await response.json();
+        
+        if (data.history && data.history.length > 0) {
+            const seenMessages = new Set();
+            
+            data.history.forEach(msg => {
+                const messageKey = `${msg.role}:${msg.content}`;
+                if (!seenMessages.has(messageKey)) {
+                    seenMessages.add(messageKey);
+                    addMessageToChat(msg.role, msg.content, false);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('대화 기록 불러오기 실패:', error);
+    }
+}
+
+// 스트리밍 모드 설정
+const USE_STREAMING = true;
+let currentAbortController = null;
+
+async function sendMessage(event) {
+    event.preventDefault();
+    
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // 이전 요청 취소
+    if (currentAbortController) {
+        currentAbortController.abort();
+    }
+    currentAbortController = new AbortController();
+    
+    // 사용자 메시지 표시
+    addMessageToChat('user', message);
+    input.value = '';
+    
+    // 입력 비활성화
+    const sendBtn = document.getElementById('sendBtn');
+    sendBtn.disabled = true;
+    
+    if (USE_STREAMING) {
+        await sendMessageStreaming(message, sendBtn);
+    } else {
+        await sendMessageNormal(message, sendBtn);
+    }
+    
+    // 입력 필드로 포커스
+    input.focus();
+}
+
+async function sendMessageStreaming(message, sendBtn) {
+    const messagesContainer = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message assistant';
+    
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+    bubble.innerHTML = '<span class="streaming-cursor">▊</span>';
+    
+    messageDiv.appendChild(bubble);
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    let thinkingProcessUI = null;
+    let thinkingSteps = [];
+    let shouldShowThinkingProcess = false;
+    let currentResponseNode = null;
+    let nodeSearchInfo = {};
+    
+    let fullContent = '';
+    let hasReceivedToken = false;
+    let jsonBlocks = [];
+    let nodeHistory = [];
+    
+    // 검색 정보를 "생각하는 과정" 콘텐츠로 변환 (간소화)
+    function createThinkingStepContent(nodeName, nodeDisplay, searchInfo) {
+        const queries = searchInfo.queries || [];
+        const dbResults = searchInfo.db_results || [];
+        const webResults = searchInfo.web_results || [];
+        
+        if (queries.length === 0 && dbResults.length === 0 && webResults.length === 0) {
+            return null;
+        }
+        
+        let contentParts = [];
+        
+        if (queries.length > 0) {
+            const displayQueries = queries.slice(0, 2);
+            const queryText = displayQueries.join(', ');
+            const extraCount = queries.length - 2;
+            contentParts.push(`검색: ${queryText}${extraCount > 0 ? ` 외 ${extraCount}개` : ''}`);
+        }
+        
+        const totalResults = dbResults.length + webResults.length;
+        if (totalResults > 0) {
+            const resultTypes = [];
+            if (dbResults.length > 0) resultTypes.push(`FAQ ${dbResults.length}개`);
+            if (webResults.length > 0) resultTypes.push(`웹 ${webResults.length}개`);
+            contentParts.push(`결과: ${resultTypes.join(', ')}`);
+        }
+        
+        return contentParts.length > 0 ? contentParts.join(' • ') : null;
+    }
+
+    // "생각하는 과정" 단계 추가 또는 업데이트
+    function addOrUpdateThinkingStep(nodeName, nodeDisplay, searchInfo) {
+        if (!nodeName || nodeName === 'simple_chat_specialist' || nodeName === 'transaction_specialist') {
+            return -1;
+        }
+        
+        const stepTitle = getNodeStepTitle(nodeName, '');
+        if (!stepTitle) {
+            return -1;
+        }
+        
+        let stepIndex = thinkingSteps.findIndex(step => {
+            const stepNodeName = getNodeNameFromStep(step.title);
+            return stepNodeName === nodeName;
         });
-
-        async function loadChatHistory() {
-            try {
-                const messagesContainer = document.getElementById('chatMessages');
-                // 기존 메시지 모두 제거 (중복 방지)
-                messagesContainer.innerHTML = '';
-                
-                const response = await fetch(`/api/chat/history/${sessionId}`);
-                const data = await response.json();
-                
-                if (data.history && data.history.length > 0) {
-                    // 중복 제거: 같은 role과 content를 가진 메시지는 한 번만 추가
-                    const seenMessages = new Set();
-                    
-                    data.history.forEach(msg => {
-                        const messageKey = `${msg.role}:${msg.content}`;
-                        if (!seenMessages.has(messageKey)) {
-                            seenMessages.add(messageKey);
-                            addMessageToChat(msg.role, msg.content, false);
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('대화 기록 불러오기 실패:', error);
-            }
-        }
-
-        // 스트리밍 모드 설정 (true: 실시간 스트리밍, false: 기존 방식)
-        const USE_STREAMING = true;
-        let currentAbortController = null;
-
-        async function sendMessage(event) {
-            event.preventDefault();
-            
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-            
-            if (!message) return;
-            
-            // 이전 요청 취소
-            if (currentAbortController) {
-                currentAbortController.abort();
-            }
-            currentAbortController = new AbortController();
-            
-            // 사용자 메시지 표시
-            addMessageToChat('user', message);
-            input.value = '';
-            
-            // 입력 비활성화
-            const sendBtn = document.getElementById('sendBtn');
-            sendBtn.disabled = true;
-            
-            if (USE_STREAMING) {
-                await sendMessageStreaming(message, sendBtn);
-            } else {
-                await sendMessageNormal(message, sendBtn);
-            }
-            
-            // 입력 필드로 포커스
-            input.focus();
-        }
-
-        async function sendMessageStreaming(message, sendBtn) {
-            // 스트리밍 응답용 메시지 버블 생성
-            const messagesContainer = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message assistant';
-            
-            const bubble = document.createElement('div');
-            bubble.className = 'message-bubble';
-            bubble.innerHTML = '<span class="streaming-cursor">▊</span>';
-            
-            messageDiv.appendChild(bubble);
-            messagesContainer.appendChild(messageDiv);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            
-            // "생각하는 과정" 영역 (초기에는 숨김)
-            let thinkingProcessUI = null;
-            let thinkingSteps = [];
-            let shouldShowThinkingProcess = false;  // 답변 완료 후 표시할지 여부
-            let currentResponseNode = null;  // 현재 응답을 생성하는 노드 추적
-            let nodeSearchInfo = {};  // 노드별 검색 정보 저장
-            
-            let fullContent = '';
-            let hasReceivedToken = false;  // 토큰 수신 여부 추적
-            let jsonBlocks = [];  // 수집된 JSON 블록
-            let nodeHistory = [];  // 노드 실행 이력
-            
-            // "생각하는 과정" 관련 공통 함수들 (sendMessageStreaming 내부에서 정의)
-            
-            // 검색 정보를 "생각하는 과정" 콘텐츠로 변환 (간소화)
-            function createThinkingStepContent(nodeName, nodeDisplay, searchInfo) {
-                const queries = searchInfo.queries || [];
-                const dbResults = searchInfo.db_results || [];
-                const webResults = searchInfo.web_results || [];
-                
-                // 검색 정보가 없으면 기본 메시지도 표시하지 않음
-                if (queries.length === 0 && dbResults.length === 0 && webResults.length === 0) {
-                    return null; // 내용이 없으면 null 반환
-                }
-                
-                let contentParts = [];
-                
-                // 검색 쿼리가 있으면 간단히 표시 (최대 2개)
-                if (queries.length > 0) {
-                    const displayQueries = queries.slice(0, 2);
-                    const queryText = displayQueries.join(', ');
-                    const extraCount = queries.length - 2;
-                    contentParts.push(`검색: ${queryText}${extraCount > 0 ? ` 외 ${extraCount}개` : ''}`);
-                }
-                
-                // 검색 결과가 있으면 간단히 요약
-                const totalResults = dbResults.length + webResults.length;
-                if (totalResults > 0) {
-                    const resultTypes = [];
-                    if (dbResults.length > 0) resultTypes.push(`FAQ ${dbResults.length}개`);
-                    if (webResults.length > 0) resultTypes.push(`웹 ${webResults.length}개`);
-                    contentParts.push(`결과: ${resultTypes.join(', ')}`);
-                }
-                
-                return contentParts.length > 0 ? contentParts.join(' • ') : null;
-            }
-
-            // "생각하는 과정" 단계 추가 또는 업데이트
-            function addOrUpdateThinkingStep(nodeName, nodeDisplay, searchInfo) {
-                // simple_chat_specialist와 transaction_specialist는 제외
-                if (!nodeName || nodeName === 'simple_chat_specialist' || nodeName === 'transaction_specialist') {
-                    return -1;
-                }
-                
-                const stepTitle = getNodeStepTitle(nodeName, '');
-                if (!stepTitle) {
-                    return -1;
-                }
-                
-                // 기존 단계 찾기
-                let stepIndex = thinkingSteps.findIndex(step => {
-                    const stepNodeName = getNodeNameFromStep(step.title);
-                    return stepNodeName === nodeName;
+        
+        if (stepIndex === -1) {
+            if (!nodeHistory.some(n => n.name === nodeName)) {
+                nodeHistory.push({
+                    name: nodeName,
+                    display: nodeDisplay || NODE_DISPLAY_NAMES[nodeName] || nodeName
                 });
-                
-                // 단계가 없으면 새로 생성
-                if (stepIndex === -1) {
-                    // 노드 이력에 추가
-                    if (!nodeHistory.some(n => n.name === nodeName)) {
-                        nodeHistory.push({
-                            name: nodeName,
-                            display: nodeDisplay || NODE_DISPLAY_NAMES[nodeName] || nodeName
-                        });
-                    }
-                    
-                    // 새 단계 추가
-                    thinkingSteps.push({
-                        title: stepTitle,
-                        content: '',
-                        queries: [],
-                        searchInfo: {}
-                    });
-                    stepIndex = thinkingSteps.length - 1;
-                }
-                
-                // 검색 정보로 콘텐츠 업데이트
-                const content = createThinkingStepContent(nodeName, '', searchInfo);
-                
-                // 내용이 있으면 업데이트, 없으면 null로 설정 (나중에 필터링됨)
-                thinkingSteps[stepIndex].content = content;
-                thinkingSteps[stepIndex].queries = searchInfo.queries || [];
-                thinkingSteps[stepIndex].searchInfo = searchInfo;
-                
-                return stepIndex;
             }
             
-            // "생각하는 과정" UI 업데이트 함수
-            function updateThinkingProcessUI() {
-                if (!thinkingProcessUI) {
-                    thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
-                } else {
-                    const content = thinkingProcessUI.querySelector('.thinking-content');
-                    if (content) {
-                        content.innerHTML = '';
-                        
-                        // 내용이 있는 단계만 필터링
-                        const stepsWithContent = thinkingSteps.filter(step => step.content && step.content.trim());
-                        
-                        // 헤더의 단계 수 업데이트
-                        const header = thinkingProcessUI.querySelector('.thinking-header');
-                        if (header) {
-                            const titleSpan = header.querySelector('.thinking-title span');
-                            if (titleSpan) {
-                                titleSpan.textContent = `🤔 생각하는 과정 (${stepsWithContent.length}단계)`;
-                            }
-                        }
-                        
-                        stepsWithContent.forEach(step => {
-                            const stepDiv = document.createElement('div');
-                            stepDiv.className = 'thinking-step';
-                            
-                            let stepHTML = `<div class="thinking-step-title">${step.title}</div>`;
-                            if (step.content) {
-                                stepHTML += `<div class="thinking-step-content">${step.content}</div>`;
-                            }
-                            
-                            stepDiv.innerHTML = stepHTML;
-                            content.appendChild(stepDiv);
-                        });
+            thinkingSteps.push({
+                title: stepTitle,
+                content: '',
+                queries: [],
+                searchInfo: {}
+            });
+            stepIndex = thinkingSteps.length - 1;
+        }
+        
+        const content = createThinkingStepContent(nodeName, '', searchInfo);
+        thinkingSteps[stepIndex].content = content;
+        thinkingSteps[stepIndex].queries = searchInfo.queries || [];
+        thinkingSteps[stepIndex].searchInfo = searchInfo;
+        
+        return stepIndex;
+    }
+    
+    // "생각하는 과정" UI 업데이트 함수
+    function updateThinkingProcessUI() {
+        if (!thinkingProcessUI) {
+            thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
+        } else {
+            const content = thinkingProcessUI.querySelector('.thinking-content');
+            if (content) {
+                content.innerHTML = '';
+                
+                const stepsWithContent = thinkingSteps.filter(step => step.content && step.content.trim());
+                
+                const header = thinkingProcessUI.querySelector('.thinking-header');
+                if (header) {
+                    const titleSpan = header.querySelector('.thinking-title span');
+                    if (titleSpan) {
+                        titleSpan.textContent = `🤔 생각하는 과정 (${stepsWithContent.length}단계)`;
                     }
                 }
-            }
-            
-            try {
-                const response = await fetch('/api/chat/stream', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: message,
-                        session_id: sessionId
-                    }),
-                    signal: currentAbortController.signal
+                
+                stepsWithContent.forEach(step => {
+                    const stepDiv = document.createElement('div');
+                    stepDiv.className = 'thinking-step';
+                    
+                    let stepHTML = `<div class="thinking-step-title">${step.title}</div>`;
+                    if (step.content) {
+                        stepHTML += `<div class="thinking-step-content">${step.content}</div>`;
+                    }
+                    
+                    stepDiv.innerHTML = stepHTML;
+                    content.appendChild(stepDiv);
                 });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
-                    
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
+            }
+        }
+    }
+    
+    try {
+        const response = await fetch('/api/chat/stream', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: message,
+                session_id: sessionId
+            }),
+            signal: currentAbortController.signal
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        
+                        if (data.type === 'token') {
+                            fullContent += data.content;
+                            
+                            let jsonStart = fullContent.indexOf('{');
+                            const foundJsonBlocks = [];
+                            
+                            while (jsonStart !== -1) {
+                                let braceCount = 0;
+                                let jsonEnd = -1;
                                 
-                                if (data.type === 'token') {
-                                    // 토큰 레벨 스트리밍 (글자 단위)
-                                    fullContent += data.content;
+                                for (let i = jsonStart; i < fullContent.length; i++) {
+                                    if (fullContent[i] === '{') braceCount++;
+                                    if (fullContent[i] === '}') braceCount--;
+                                    if (braceCount === 0) {
+                                        jsonEnd = i + 1;
+                                        break;
+                                    }
+                                }
+                                
+                                if (jsonEnd > jsonStart) {
+                                    const jsonText = fullContent.substring(jsonStart, jsonEnd);
                                     
-                                    // JSON 블록 감지 및 추출 (더 정확한 방법)
-                                    // {로 시작해서 }로 끝나는 블록 찾기 (중첩된 중괄호 고려)
-                                    let jsonStart = fullContent.indexOf('{');
-                                    const foundJsonBlocks = [];
-                                    
-                                    while (jsonStart !== -1) {
-                                        let braceCount = 0;
-                                        let jsonEnd = -1;
+                                    if (jsonText.includes('"search_queries"') || 
+                                        jsonText.includes('"research_plan"') || 
+                                        jsonText.includes('"priority"') ||
+                                        jsonText.includes('"score"') || 
+                                        jsonText.includes('"is_sufficient"') || 
+                                        jsonText.includes('"feedback"') ||
+                                        jsonText.includes('"missing_information"')) {
                                         
-                                        for (let i = jsonStart; i < fullContent.length; i++) {
-                                            if (fullContent[i] === '{') braceCount++;
-                                            if (fullContent[i] === '}') braceCount--;
-                                            if (braceCount === 0) {
-                                                jsonEnd = i + 1;
-                                                break;
-                                            }
-                                        }
-                                        
-                                        if (jsonEnd > jsonStart) {
-                                            const jsonText = fullContent.substring(jsonStart, jsonEnd);
+                                        try {
+                                            const parsed = JSON.parse(jsonText);
+                                            const isNew = !foundJsonBlocks.some(block => block.text === jsonText);
                                             
-                                            // JSON 키워드 확인 (내부 처리 정보인지 확인)
-                                            if (jsonText.includes('"search_queries"') || 
-                                                jsonText.includes('"research_plan"') || 
-                                                jsonText.includes('"priority"') ||
-                                                jsonText.includes('"score"') || 
-                                                jsonText.includes('"is_sufficient"') || 
-                                                jsonText.includes('"feedback"') ||
-                                                jsonText.includes('"missing_information"')) {
-                                                
-                                                try {
-                                                    const parsed = JSON.parse(jsonText);
-                                                    // 이미 수집된 블록인지 확인 (원본 텍스트로 비교)
-                                                    const isNew = !foundJsonBlocks.some(block => block.text === jsonText);
+                                            if (isNew) {
+                                                foundJsonBlocks.push({ text: jsonText, parsed: parsed });
+                                                const alreadyExists = jsonBlocks.some(block => block.text === jsonText);
+                                                if (!alreadyExists) {
+                                                    jsonBlocks.push({ text: jsonText, parsed: parsed });
                                                     
-                                                    if (isNew) {
-                                                        foundJsonBlocks.push({ text: jsonText, parsed: parsed });
-                                                        // jsonBlocks에 추가 (중복 체크)
-                                                        const alreadyExists = jsonBlocks.some(block => block.text === jsonText);
-                                                        if (!alreadyExists) {
-                                                            jsonBlocks.push({ text: jsonText, parsed: parsed });
-                                                            console.log('JSON 블록 감지됨:', jsonText.substring(0, 100) + '...');
-                                                            
-                                                            const steps = parseThinkingProcess(jsonText);
-                                                            console.log('생각하는 과정 단계:', steps);
-                                                            if (steps.length > 0) {
-                                                                thinkingSteps.push(...steps);
-                                                                
-                                                                // "생각하는 과정" UI는 나중에 표시 (답변 완료 후)
-                                                                shouldShowThinkingProcess = true;
-                                                                if (!thinkingProcessUI) {
-                                                                    thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
-                                                                } else {
-                                                                    // 기존 UI 업데이트
-                                                                    const content = thinkingProcessUI.querySelector('.thinking-content');
-                                                                    if (content) {
-                                                                        content.innerHTML = '';
-                                                                        thinkingSteps.forEach(step => {
-                                                                            const stepDiv = document.createElement('div');
-                                                                            stepDiv.className = 'thinking-step';
-                                                                            let stepHTML = `<div class="thinking-step-title">${step.title}</div>`;
-                                                                            stepHTML += `<div class="thinking-step-content">${step.content}</div>`;
-                                                                            if (step.queries && step.queries.length > 0) {
-                                                                                stepHTML += '<ul>';
-                                                                                step.queries.slice(0, 3).forEach(query => {
-                                                                                    stepHTML += `<li>${query}</li>`;
-                                                                                });
-                                                                                if (step.queries.length > 3) {
-                                                                                    stepHTML += `<li>... 외 ${step.queries.length - 3}개</li>`;
-                                                                                }
-                                                                                stepHTML += '</ul>';
-                                                                            }
-                                                                            stepDiv.innerHTML = stepHTML;
-                                                                            content.appendChild(stepDiv);
-                                                                        });
-                                                                    }
-                                                                }
-                                                            }
+                                                    const steps = parseThinkingProcess(jsonText);
+                                                    if (steps.length > 0) {
+                                                        thinkingSteps.push(...steps);
+                                                        shouldShowThinkingProcess = true;
+                                                        if (!thinkingProcessUI) {
+                                                            thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
+                                                        } else {
+                                                            updateThinkingProcessUI();
                                                         }
                                                     }
-                                                } catch (e) {
-                                                    console.error('JSON 파싱 실패:', e, jsonText.substring(0, 100));
                                                 }
                                             }
-                                            
-                                            // 다음 { 찾기
-                                            jsonStart = fullContent.indexOf('{', jsonEnd);
-                                        } else {
-                                            break;
+                                        } catch (e) {
+                                            console.error('JSON 파싱 실패:', e);
                                         }
                                     }
                                     
-                                    // JSON 블록 제거 후 실제 콘텐츠만 표시 (원본 텍스트로 제거)
-                                    let displayContent = fullContent;
-                                    
-                                    // 모든 JSON 블록을 제거 (긴 것부터 짧은 것 순서로 정렬하여 제거)
-                                    const sortedBlocks = [...jsonBlocks].sort((a, b) => b.text.length - a.text.length);
-                                    sortedBlocks.forEach(jsonBlock => {
-                                        // 원본 텍스트를 그대로 사용하여 제거 (정규식 이스케이프)
-                                        const escapedText = jsonBlock.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                                        displayContent = displayContent.replace(new RegExp(escapedText, 'g'), '').trim();
-                                    });
-                                    
-                                    // 여러 JSON 블록이 연속된 경우 추가 처리 (더 강력한 정규식)
-                                    displayContent = displayContent.replace(/^\s*\{[\s\S]*?\}\s*\{[\s\S]*?\}\s*/g, '');
-                                    displayContent = displayContent.replace(/^\s*\{[\s\S]*?\}\s*/g, '');
-                                    
-                                    // JSON 키워드가 남아있으면 추가 제거 시도
-                                    if (displayContent.includes('"search_queries"') || 
-                                        displayContent.includes('"research_plan"') || 
-                                        displayContent.includes('"score"')) {
-                                        // {로 시작하는 모든 블록 제거 시도
-                                        displayContent = displayContent.replace(/\{[\s\S]*?\}/g, function(match) {
-                                            if (match.includes('"search_queries"') || 
-                                                match.includes('"research_plan"') || 
-                                                match.includes('"score"') ||
-                                                match.includes('"priority"') ||
-                                                match.includes('"is_sufficient"') ||
-                                                match.includes('"feedback"')) {
-                                                return '';
-                                            }
-                                            return match;
-                                        }).trim();
-                                    }
-                                    
-                                    hasReceivedToken = true;  // 토큰 수신 표시
-                                    const formattedContent = formatMessage(displayContent);
-                                    bubble.innerHTML = formattedContent + '<span class="streaming-cursor">▊</span>';
-                                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                                } else if (data.type === 'content') {
-                                    // 기존 방식 호환 (청크 단위)
-                                    fullContent += data.content;
-                                    hasReceivedToken = true;  // 토큰 수신 표시
-                                    // 노드 상태를 완전히 제거하고 실제 콘텐츠만 표시
-                                    const formattedContent = formatMessage(fullContent);
-                                    bubble.innerHTML = formattedContent + '<span class="streaming-cursor">▊</span>';
-                                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                                } else if (data.type === 'node') {
-                                    // 노드 진행 상황 표시 및 노드 이력 저장
-                                    const nodeName = data.node || '';
-                                    const displayName = data.display || '';
-                                    
-                                    console.log('노드 진행:', displayName, '노드명:', nodeName);
-                                    
-                                    // "생각하는 과정" 단계 추가 또는 업데이트 (공통 함수 사용)
-                                    const searchInfo = nodeSearchInfo[nodeName] || {};
-                                    const stepIndex = addOrUpdateThinkingStep(nodeName, displayName, searchInfo);
-                                    
-                                    if (stepIndex !== -1) {
-                                        shouldShowThinkingProcess = true;
-                                        updateThinkingProcessUI();
-                                    }
-                                    
-                                    // 응답 생성 노드 추적
-                                    if (nodeName && ['writer', 'faq_specialist', 'transaction_specialist', 'intent_clarifier', 'simple_chat_specialist'].includes(nodeName)) {
-                                        currentResponseNode = nodeName;
-                                    }
-                                    
-                                    // 토큰을 받지 않았을 때만 노드 상태 표시
-                                    if (!hasReceivedToken && (!fullContent || fullContent.trim() === '')) {
-                                        bubble.innerHTML = `<span class="node-status">${displayName}</span><span class="streaming-cursor">▊</span>`;
-                                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                                    }
-                                } else if (data.type === 'node_search') {
-                                    // 노드별 검색 정보 수신 (공통 함수 사용)
-                                    const nodeName = data.node || '';
-                                    const searchInfo = data.search_info || {};
-                                    
-                                    console.log('검색 정보 수신:', nodeName, searchInfo);
-                                    
-                                    // simple_chat_specialist와 transaction_specialist는 "생각하는 과정"에 포함하지 않음
-                                    if (nodeName === 'simple_chat_specialist' || nodeName === 'transaction_specialist') {
-                                        // 검색 정보도 저장하지 않음
-                                        return;
-                                    }
-                                    
-                                    // 검색 정보 저장
-                                    nodeSearchInfo[nodeName] = searchInfo;
-                                    
-                                    // "생각하는 과정" 단계 추가 또는 업데이트
-                                    const nodeDisplay = nodeHistory.find(n => n.name === nodeName)?.display || NODE_DISPLAY_NAMES[nodeName] || nodeName;
-                                    const stepIndex = addOrUpdateThinkingStep(nodeName, nodeDisplay, searchInfo);
-                                    
-                                    if (stepIndex !== -1) {
-                                        shouldShowThinkingProcess = true;
-                                        updateThinkingProcessUI();
-                                    }
-                                } else if (data.type === 'done') {
-                                    // 스트리밍 완료 - JSON 제거 후 최종 응답만 표시
-                                    let finalText = fullContent || data.final_response || '';
-                                    
-                                    // JSON 블록 제거 (원본 텍스트로 제거)
-                                    jsonBlocks.forEach(jsonBlock => {
-                                        finalText = finalText.replace(jsonBlock.text, '').trim();
-                                    });
-                                    finalText = finalText.replace(/^\s*\{[\s\S]*?\}\s*\{[\s\S]*?\}\s*/g, '');
-                                    finalText = finalText.replace(/^\s*\{[\s\S]*?\}\s*/g, '');
-                                    
-                                    const formattedContent = formatMessage(finalText);
-                                    bubble.innerHTML = formattedContent;
-                                    
-                                    // 답변 완료 후 "생각하는 과정" UI를 답변 아래에 추가
-                                    // simple_chat_specialist와 transaction_specialist가 응답을 생성한 경우는 표시하지 않음
-                                    if (currentResponseNode === 'simple_chat_specialist' || currentResponseNode === 'transaction_specialist') {
-                                        // "생각하는 과정" UI를 표시하지 않음
-                                        shouldShowThinkingProcess = false;
-                                    } else {
-                                        // simple_chat_specialist와 transaction_specialist는 제외
-                                        const filteredNodeSearchInfo = Object.fromEntries(
-                                            Object.entries(nodeSearchInfo).filter(([nodeName]) => 
-                                                nodeName !== 'simple_chat_specialist' && nodeName !== 'transaction_specialist'
-                                            )
-                                        );
-                                        
-                                        // thinkingSteps가 있거나 검색 정보가 있으면 표시 (제외된 노드 제외)
-                                        if (thinkingSteps.length > 0 || Object.keys(filteredNodeSearchInfo).length > 0) {
-                                            shouldShowThinkingProcess = true;
-                                            
-                                            // thinkingProcessUI가 없으면 생성
-                                            if (!thinkingProcessUI && thinkingSteps.length > 0) {
-                                                thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
-                                            } else if (thinkingProcessUI) {
-                                                // 기존 UI 업데이트
-                                                updateThinkingProcessUI();
-                                            }
-                                            
-                                            // UI가 있고 아직 DOM에 추가되지 않았으면 추가
-                                            if (thinkingProcessUI && !messageDiv.contains(thinkingProcessUI)) {
-                                                messageDiv.appendChild(thinkingProcessUI);
-                                            }
-                                            
-                                            // 접힌 상태로 유지
-                                            if (thinkingProcessUI) {
-                                                thinkingProcessUI.classList.add('collapsed');
-                                                thinkingProcessUI.classList.remove('expanded');
-                                            }
-                                        }
-                                    }
-                                    
-                                    sendBtn.disabled = false;
-                                } else if (data.type === 'error') {
-                                    // 에러 발생 시 노드 상태와 커서 완전히 제거
-                                    bubble.innerHTML = formatMessage('죄송합니다. 오류가 발생했습니다: ' + data.content);
-                                    sendBtn.disabled = false;
+                                    jsonStart = fullContent.indexOf('{', jsonEnd);
+                                } else {
+                                    break;
                                 }
-                            } catch (parseError) {
-                                console.error('SSE 파싱 오류:', parseError);
                             }
+                            
+                            let displayContent = fullContent;
+                            const sortedBlocks = [...jsonBlocks].sort((a, b) => b.text.length - a.text.length);
+                            sortedBlocks.forEach(jsonBlock => {
+                                const escapedText = jsonBlock.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                displayContent = displayContent.replace(new RegExp(escapedText, 'g'), '').trim();
+                            });
+                            
+                            displayContent = displayContent.replace(/^\s*\{[\s\S]*?\}\s*\{[\s\S]*?\}\s*/g, '');
+                            displayContent = displayContent.replace(/^\s*\{[\s\S]*?\}\s*/g, '');
+                            
+                            if (displayContent.includes('"search_queries"') || 
+                                displayContent.includes('"research_plan"') || 
+                                displayContent.includes('"score"')) {
+                                displayContent = displayContent.replace(/\{[\s\S]*?\}/g, function(match) {
+                                    if (match.includes('"search_queries"') || 
+                                        match.includes('"research_plan"') || 
+                                        match.includes('"score"') ||
+                                        match.includes('"priority"') ||
+                                        match.includes('"is_sufficient"') ||
+                                        match.includes('"feedback"')) {
+                                        return '';
+                                    }
+                                    return match;
+                                }).trim();
+                            }
+                            
+                            hasReceivedToken = true;
+                            const formattedContent = formatMessage(displayContent);
+                            bubble.innerHTML = formattedContent + '<span class="streaming-cursor">▊</span>';
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        } else if (data.type === 'content') {
+                            fullContent += data.content;
+                            hasReceivedToken = true;
+                            const formattedContent = formatMessage(fullContent);
+                            bubble.innerHTML = formattedContent + '<span class="streaming-cursor">▊</span>';
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        } else if (data.type === 'node') {
+                            const nodeName = data.node || '';
+                            const displayName = data.display || '';
+                            
+                            const searchInfo = nodeSearchInfo[nodeName] || {};
+                            const stepIndex = addOrUpdateThinkingStep(nodeName, displayName, searchInfo);
+                            
+                            if (stepIndex !== -1) {
+                                shouldShowThinkingProcess = true;
+                                updateThinkingProcessUI();
+                            }
+                            
+                            if (nodeName && ['writer', 'faq_specialist', 'transaction_specialist', 'intent_clarifier', 'simple_chat_specialist'].includes(nodeName)) {
+                                currentResponseNode = nodeName;
+                            }
+                            
+                            if (!hasReceivedToken && (!fullContent || fullContent.trim() === '')) {
+                                bubble.innerHTML = `<span class="node-status">${displayName}</span><span class="streaming-cursor">▊</span>`;
+                                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                            }
+                        } else if (data.type === 'node_search') {
+                            const nodeName = data.node || '';
+                            const searchInfo = data.search_info || {};
+                            
+                            if (nodeName === 'simple_chat_specialist' || nodeName === 'transaction_specialist') {
+                                return;
+                            }
+                            
+                            nodeSearchInfo[nodeName] = searchInfo;
+                            
+                            const nodeDisplay = nodeHistory.find(n => n.name === nodeName)?.display || NODE_DISPLAY_NAMES[nodeName] || nodeName;
+                            const stepIndex = addOrUpdateThinkingStep(nodeName, nodeDisplay, searchInfo);
+                            
+                            if (stepIndex !== -1) {
+                                shouldShowThinkingProcess = true;
+                                updateThinkingProcessUI();
+                            }
+                        } else if (data.type === 'done') {
+                            let finalText = fullContent || data.final_response || '';
+                            
+                            jsonBlocks.forEach(jsonBlock => {
+                                finalText = finalText.replace(jsonBlock.text, '').trim();
+                            });
+                            finalText = finalText.replace(/^\s*\{[\s\S]*?\}\s*\{[\s\S]*?\}\s*/g, '');
+                            finalText = finalText.replace(/^\s*\{[\s\S]*?\}\s*/g, '');
+                            
+                            const formattedContent = formatMessage(finalText);
+                            bubble.innerHTML = formattedContent;
+                            
+                            if (currentResponseNode === 'simple_chat_specialist' || currentResponseNode === 'transaction_specialist') {
+                                shouldShowThinkingProcess = false;
+                            } else {
+                                const filteredNodeSearchInfo = Object.fromEntries(
+                                    Object.entries(nodeSearchInfo).filter(([nodeName]) => 
+                                        nodeName !== 'simple_chat_specialist' && nodeName !== 'transaction_specialist'
+                                    )
+                                );
+                                
+                                if (thinkingSteps.length > 0 || Object.keys(filteredNodeSearchInfo).length > 0) {
+                                    shouldShowThinkingProcess = true;
+                                    
+                                    if (!thinkingProcessUI && thinkingSteps.length > 0) {
+                                        thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
+                                    } else if (thinkingProcessUI) {
+                                        updateThinkingProcessUI();
+                                    }
+                                    
+                                    if (thinkingProcessUI && !messageDiv.contains(thinkingProcessUI)) {
+                                        messageDiv.appendChild(thinkingProcessUI);
+                                    }
+                                    
+                                    if (thinkingProcessUI) {
+                                        thinkingProcessUI.classList.add('collapsed');
+                                        thinkingProcessUI.classList.remove('expanded');
+                                    }
+                                }
+                            }
+                            
+                            sendBtn.disabled = false;
+                        } else if (data.type === 'error') {
+                            bubble.innerHTML = formatMessage('죄송합니다. 오류가 발생했습니다: ' + data.content);
+                            sendBtn.disabled = false;
                         }
+                    } catch (parseError) {
+                        console.error('SSE 파싱 오류:', parseError);
                     }
                 }
-                
-                // 완료 후 정리: JSON 제거 후 최종 콘텐츠만 표시
-                let finalContent = fullContent;
-                
-                // JSON 블록 제거 (원본 텍스트로 제거)
-                jsonBlocks.forEach(jsonBlock => {
-                    finalContent = finalContent.replace(jsonBlock.text, '').trim();
-                });
-                finalContent = finalContent.replace(/^\s*\{[\s\S]*?\}\s*\{[\s\S]*?\}\s*/g, '');
-                finalContent = finalContent.replace(/^\s*\{[\s\S]*?\}\s*/g, '');
-                
-                const finalFormattedContent = formatMessage(finalContent);
-                bubble.innerHTML = finalFormattedContent;
-                
-                // 답변 완료 후 "생각하는 과정" UI를 답변 아래에 추가
-                // simple_chat_specialist와 transaction_specialist가 응답을 생성한 경우는 표시하지 않음
-                if (currentResponseNode === 'simple_chat_specialist' || currentResponseNode === 'transaction_specialist') {
-                    // "생각하는 과정" UI를 표시하지 않음
-                    shouldShowThinkingProcess = false;
-                } else {
-                    // simple_chat_specialist와 transaction_specialist는 제외
-                    const filteredNodeSearchInfo = Object.fromEntries(
-                        Object.entries(nodeSearchInfo).filter(([nodeName]) => 
-                            nodeName !== 'simple_chat_specialist' && nodeName !== 'transaction_specialist'
-                        )
-                    );
-                    
-                    // thinkingSteps가 있거나 검색 정보가 있으면 표시 (제외된 노드 제외)
-                    if (thinkingSteps.length > 0 || Object.keys(filteredNodeSearchInfo).length > 0) {
-                        shouldShowThinkingProcess = true;
-                        
-                        // thinkingProcessUI가 없으면 생성
-                        if (!thinkingProcessUI && thinkingSteps.length > 0) {
-                            thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
-                        } else if (thinkingProcessUI) {
-                            // 기존 UI 업데이트
-                            updateThinkingProcessUI();
-                        }
-                        
-                        // UI가 있고 아직 DOM에 추가되지 않았으면 추가
-                        if (thinkingProcessUI && !messageDiv.contains(thinkingProcessUI)) {
-                            messageDiv.appendChild(thinkingProcessUI);
-                        }
-                        
-                        // 접힌 상태로 유지
-                        if (thinkingProcessUI) {
-                            thinkingProcessUI.classList.add('collapsed');
-                            thinkingProcessUI.classList.remove('expanded');
-                        }
-                    }
-                }
-                
-                sendBtn.disabled = false;
-                
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    console.log('요청이 취소되었습니다.');
-                } else {
-                    console.error('스트리밍 오류:', error);
-                    bubble.innerHTML = formatMessage('연결 오류가 발생했습니다. 다시 시도해주세요.');
-                }
-                sendBtn.disabled = false;
             }
         }
-
-        async function sendMessageNormal(message, sendBtn) {
-            // 로딩 표시
-            const loadingId = showLoading();
-            
-            try {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: message,
-                        session_id: sessionId
-                    }),
-                    signal: currentAbortController.signal
-                });
-                
-                const data = await response.json();
-                
-                // 로딩 제거
-                hideLoading(loadingId);
-                sendBtn.disabled = false;
-                
-                if (data.error) {
-                    addMessageToChat('assistant', '죄송합니다. 오류가 발생했습니다: ' + data.error);
-                } else {
-                    addMessageToChat('assistant', data.response);
-                }
-                
-            } catch (error) {
-                hideLoading(loadingId);
-                sendBtn.disabled = false;
-                if (error.name !== 'AbortError') {
-                    addMessageToChat('assistant', '연결 오류가 발생했습니다. 다시 시도해주세요.');
-                    console.error('Error:', error);
-                }
-            }
-        }
-
-        function addMessageToChat(role, content, scroll = true) {
-            const messagesContainer = document.getElementById('chatMessages');
-            
-            // 빈 상태 메시지 제거
-            const emptyState = messagesContainer.querySelector('.empty-state');
-            if (emptyState) {
-                emptyState.remove();
-            }
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${role}`;
-            
-            const bubble = document.createElement('div');
-            bubble.className = 'message-bubble';
-            
-            // 텍스트를 처리하여 가독성 향상
-            const formattedContent = formatMessage(content);
-            bubble.innerHTML = formattedContent;
-            
-            messageDiv.appendChild(bubble);
-            messagesContainer.appendChild(messageDiv);
-            
-            if (scroll) {
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            }
-        }
-
-        function formatMessage(text) {
-            if (!text) return '';
-            
-            // 코드 블록 먼저 처리 (중괄호 이스케이프 방지)
-            const codeBlocks = [];
-            let codeBlockIndex = 0;
-            text = text.replace(/```([\s\S]*?)```/g, (match, code) => {
-                const placeholder = `__CODE_BLOCK_${codeBlockIndex}__`;
-                codeBlocks[codeBlockIndex] = code;
-                codeBlockIndex++;
-                return placeholder;
-            });
-            
-            // 번호 리스트를 HTML로 변환 (HTML 이스케이프 전에 처리)
-            // 스트리밍 중에도 제대로 작동하도록 개선된 정규식 사용
-            // 연속된 번호 리스트 줄을 찾아서 <ol><li>로 변환
-            // 같은 번호가 반복되는 경우도 처리 (1. 1. 1. -> 1. 2. 3.)
-            // 더 유연한 패턴: 줄바꿈이 있거나 없거나, 공백이 있거나 없거나
-            text = text.replace(/((?:^\s*\d+\.\s+.+?(?:\n|$))+)/gm, (match) => {
-                const lines = match.split('\n');
-                const items = [];
-                
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed) continue; // 빈 줄 건너뛰기
-                    
-                    // 숫자 + 점 + 공백 + 내용 패턴 매칭 (더 유연한 패턴)
-                    const numberedMatch = trimmed.match(/^\d+\.\s+(.+)$/);
-                    if (numberedMatch) {
-                        items.push(numberedMatch[1]); // 내용만 추출 (번호는 무시)
-                    }
-                }
-                
-                if (items.length > 0) {
-                    // <ol> 태그를 사용하면 브라우저가 자동으로 1, 2, 3... 번호를 매김
-                    return '<ol>' + items.map(item => `<li>${item}</li>`).join('') + '</ol>';
-                }
-                return match;
-            });
-            
-            // 추가 처리: 스트리밍 중에 부분적으로 완성된 번호 리스트도 처리
-            // 줄 단위로 다시 확인하여 놓친 번호 리스트 처리
-            const lines = text.split('\n');
-            const processedLines = [];
-            let inNumberedList = false;
-            let numberedListItems = [];
-            
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const trimmed = line.trim();
-                
-                // 이미 <ol> 태그가 있으면 건너뛰기
-                if (line.includes('<ol>') || line.includes('</ol>')) {
-                    if (inNumberedList && numberedListItems.length > 0) {
-                        processedLines.push('<ol>' + numberedListItems.map(item => `<li>${item}</li>`).join('') + '</ol>');
-                        numberedListItems = [];
-                    }
-                    inNumberedList = false;
-                    processedLines.push(line);
-                    continue;
-                }
-                
-                // 번호 리스트 항목인지 확인
-                const numberedMatch = trimmed.match(/^\d+\.\s+(.+)$/);
-                if (numberedMatch) {
-                    if (!inNumberedList) {
-                        inNumberedList = true;
-                        numberedListItems = [];
-                    }
-                    numberedListItems.push(numberedMatch[1]);
-                    continue;
-                }
-                
-                // 번호 리스트 종료
-                if (inNumberedList) {
-                    if (numberedListItems.length > 0) {
-                        processedLines.push('<ol>' + numberedListItems.map(item => `<li>${item}</li>`).join('') + '</ol>');
-                    }
-                    inNumberedList = false;
-                    numberedListItems = [];
-                }
-                
-                processedLines.push(line);
-            }
-            
-            // 마지막 번호 리스트 처리
-            if (inNumberedList && numberedListItems.length > 0) {
-                processedLines.push('<ol>' + numberedListItems.map(item => `<li>${item}</li>`).join('') + '</ol>');
-            }
-            
-            text = processedLines.join('\n');
-            
-            // 불릿 포인트 리스트 처리
-            text = text.replace(/((?:^[-•]\s+.+$(?:\n|$))+)/gm, (match) => {
-                const lines = match.trim().split('\n');
-                const items = [];
-                
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    const bulletMatch = trimmed.match(/^[-•]\s+(.+)$/);
-                    if (bulletMatch) {
-                        items.push(bulletMatch[1]);
-                    }
-                }
-                
-                if (items.length > 0) {
-                    return '<ul>' + items.map(item => `<li>${item}</li>`).join('') + '</ul>';
-                }
-                return match;
-            });
-            
-            let html = text;
-            
-            // 이미 변환된 HTML 태그는 보호하고, 나머지 텍스트만 이스케이프
-            const htmlPlaceholders = [];
-            let placeholderIndex = 0;
-            html = html.replace(/(<[^>]+>)/g, (match) => {
-                const placeholder = `__HTML_TAG_${placeholderIndex}__`;
-                htmlPlaceholders[placeholderIndex] = match;
-                placeholderIndex++;
-                return placeholder;
-            });
-            
-            // HTML 이스케이프 (이미 변환된 HTML 태그는 제외)
-            html = html
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-            
-            // 줄바꿈 처리 (HTML 태그 복원 전에 처리)
-            // HTML 태그 내부의 줄바꿈은 제외하고 처리
-            html = html.replace(/\n/g, '<br>');
-            
-            // HTML 태그 복원
-            htmlPlaceholders.forEach((tag, index) => {
-                html = html.replace(`__HTML_TAG_${index}__`, tag);
-            });
-            
-            // 코드 블록 복원
-            codeBlocks.forEach((code, index) => {
-                const escapedCode = code
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;');
-                html = html.replace(`__CODE_BLOCK_${index}__`, `<pre><code>${escapedCode}</code></pre>`);
-            });
-            
-            // 인라인 코드 처리 (`코드` -> <code>코드</code>)
-            html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-            
-            // 강조 표시 (**텍스트** -> <strong>텍스트</strong>)
-            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-            
-            // 링크 변환 (http/https URL) - 잘못된 인코딩 수정
-            html = html.replace(
-                /(https?:\/\/[^\s<>\)]+)/g,
-                (match) => {
-                    // 잘못된 퓨니코드 인코딩 수정 (xn--com 등)
-                    let fixedUrl = match
-                        .replace(/xn--com[^\/]*/gi, 'com')
-                        .replace(/\)[^\/]*/g, '') // 잘못된 괄호 제거
-                        .replace(/[^\/]$/, ''); // URL 끝의 잘못된 문자 제거
-                    
-                    // 빗썸 URL 정규화
-                    if (fixedUrl.includes('bithumb')) {
-                        if (fixedUrl.includes('support.bithumb')) {
-                            fixedUrl = 'https://support.bithumb.com/hc/ko';
-                        } else if (fixedUrl.includes('www.bithumb') || fixedUrl.includes('bithumb.com')) {
-                            fixedUrl = 'https://www.bithumb.com';
-                        }
-                    }
-                    
-                    return `<a href="${fixedUrl}" target="_blank" rel="noopener noreferrer">${fixedUrl}</a>`;
-                }
+        
+        let finalContent = fullContent;
+        jsonBlocks.forEach(jsonBlock => {
+            finalContent = finalContent.replace(jsonBlock.text, '').trim();
+        });
+        finalContent = finalContent.replace(/^\s*\{[\s\S]*?\}\s*\{[\s\S]*?\}\s*/g, '');
+        finalContent = finalContent.replace(/^\s*\{[\s\S]*?\}\s*/g, '');
+        
+        const finalFormattedContent = formatMessage(finalContent);
+        bubble.innerHTML = finalFormattedContent;
+        
+        if (currentResponseNode === 'simple_chat_specialist' || currentResponseNode === 'transaction_specialist') {
+            shouldShowThinkingProcess = false;
+        } else {
+            const filteredNodeSearchInfo = Object.fromEntries(
+                Object.entries(nodeSearchInfo).filter(([nodeName]) => 
+                    nodeName !== 'simple_chat_specialist' && nodeName !== 'transaction_specialist'
+                )
             );
             
-            // 연속된 <br>를 단락 구분으로 변환 (리스트 태그 내부는 제외)
-            html = html.replace(/(<br>\s*){2,}(?![^<]*<\/[ou]l>)/g, '</p><p>');
-            html = '<p>' + html + '</p>';
-            html = html.replace(/<p>\s*<\/p>/g, ''); // 빈 단락 제거
-            html = html.replace(/<p>(<pre>)/g, '$1'); // 코드 블록 앞의 <p> 제거
-            html = html.replace(/(<\/pre>)<\/p>/g, '$1'); // 코드 블록 뒤의 </p> 제거
-            html = html.replace(/<p>(<[ou]l>)/g, '$1'); // 리스트 앞의 <p> 제거
-            html = html.replace(/(<\/[ou]l>)<\/p>/g, '$1'); // 리스트 뒤의 </p> 제거
-            
-            return html;
-        }
-
-        function showLoading() {
-            const messagesContainer = document.getElementById('chatMessages');
-            const loadingDiv = document.createElement('div');
-            loadingDiv.className = 'message assistant';
-            loadingDiv.id = 'loadingMessage';
-            
-            const bubble = document.createElement('div');
-            bubble.className = 'message-bubble loading';
-            bubble.innerHTML = `
-                <div class="loading-dot"></div>
-                <div class="loading-dot"></div>
-                <div class="loading-dot"></div>
-            `;
-            
-            loadingDiv.appendChild(bubble);
-            messagesContainer.appendChild(loadingDiv);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            
-            return 'loadingMessage';
-        }
-
-        function hideLoading(loadingId) {
-            const loading = document.getElementById(loadingId);
-            if (loading) {
-                loading.remove();
-            }
-        }
-
-        async function clearChat() {
-            if (!confirm('대화 기록을 모두 삭제하시겠습니까?')) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/chat/history/${sessionId}`, {
-                    method: 'DELETE'
-                });
+            if (thinkingSteps.length > 0 || Object.keys(filteredNodeSearchInfo).length > 0) {
+                shouldShowThinkingProcess = true;
                 
-                const data = await response.json();
-                
-                if (data.success) {
-                    const messagesContainer = document.getElementById('chatMessages');
-                    messagesContainer.innerHTML = `
-                        <div class="empty-state">
-                            <h2>안녕하세요! 👋</h2>
-                            <p>블록체인 트랜잭션 조회와 관련된 질문을 해주세요.</p>
-                        </div>
-                    `;
+                if (!thinkingProcessUI && thinkingSteps.length > 0) {
+                    thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
+                } else if (thinkingProcessUI) {
+                    updateThinkingProcessUI();
                 }
-            } catch (error) {
-                console.error('대화 기록 삭제 실패:', error);
-                alert('대화 기록 삭제 중 오류가 발생했습니다.');
+                
+                if (thinkingProcessUI && !messageDiv.contains(thinkingProcessUI)) {
+                    messageDiv.appendChild(thinkingProcessUI);
+                }
+                
+                if (thinkingProcessUI) {
+                    thinkingProcessUI.classList.add('collapsed');
+                    thinkingProcessUI.classList.remove('expanded');
+                }
             }
         }
-    </script>
-</body>
-</html>
+        
+        sendBtn.disabled = false;
+        
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.log('요청이 취소되었습니다.');
+        } else {
+            console.error('스트리밍 오류:', error);
+            bubble.innerHTML = formatMessage('연결 오류가 발생했습니다. 다시 시도해주세요.');
+        }
+        sendBtn.disabled = false;
+    }
+}
 
+async function sendMessageNormal(message, sendBtn) {
+    const loadingId = showLoading();
+    
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: message,
+                session_id: sessionId
+            }),
+            signal: currentAbortController.signal
+        });
+        
+        const data = await response.json();
+        
+        hideLoading(loadingId);
+        sendBtn.disabled = false;
+        
+        if (data.error) {
+            addMessageToChat('assistant', '죄송합니다. 오류가 발생했습니다: ' + data.error);
+        } else {
+            addMessageToChat('assistant', data.response);
+        }
+        
+    } catch (error) {
+        hideLoading(loadingId);
+        sendBtn.disabled = false;
+        if (error.name !== 'AbortError') {
+            addMessageToChat('assistant', '연결 오류가 발생했습니다. 다시 시도해주세요.');
+            console.error('Error:', error);
+        }
+    }
+}
 
+function addMessageToChat(role, content, scroll = true) {
+    const messagesContainer = document.getElementById('chatMessages');
+    
+    const emptyState = messagesContainer.querySelector('.empty-state');
+    if (emptyState) {
+        emptyState.remove();
+    }
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${role}`;
+    
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+    
+    const formattedContent = formatMessage(content);
+    bubble.innerHTML = formattedContent;
+    
+    messageDiv.appendChild(bubble);
+    messagesContainer.appendChild(messageDiv);
+    
+    if (scroll) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+}
+
+function formatMessage(text) {
+    if (!text) return '';
+    
+    // 코드 블록 먼저 처리
+    const codeBlocks = [];
+    let codeBlockIndex = 0;
+    text = text.replace(/```([\s\S]*?)```/g, (match, code) => {
+        const placeholder = `__CODE_BLOCK_${codeBlockIndex}__`;
+        codeBlocks[codeBlockIndex] = code;
+        codeBlockIndex++;
+        return placeholder;
+    });
+    
+    // 번호 리스트 처리
+    text = text.replace(/((?:^\s*\d+\.\s+.+?(?:\n|$))+)/gm, (match) => {
+        const lines = match.split('\n');
+        const items = [];
+        
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            
+            const numberedMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+            if (numberedMatch) {
+                items.push(numberedMatch[1]);
+            }
+        }
+        
+        if (items.length > 0) {
+            return '<ol>' + items.map(item => `<li>${item}</li>`).join('') + '</ol>';
+        }
+        return match;
+    });
+    
+    // 불릿 포인트 리스트 처리
+    text = text.replace(/((?:^[-•]\s+.+$(?:\n|$))+)/gm, (match) => {
+        const lines = match.trim().split('\n');
+        const items = [];
+        
+        for (const line of lines) {
+            const trimmed = line.trim();
+            const bulletMatch = trimmed.match(/^[-•]\s+(.+)$/);
+            if (bulletMatch) {
+                items.push(bulletMatch[1]);
+            }
+        }
+        
+        if (items.length > 0) {
+            return '<ul>' + items.map(item => `<li>${item}</li>`).join('') + '</ul>';
+        }
+        return match;
+    });
+    
+    let html = text;
+    
+    // HTML 태그 보호
+    const htmlPlaceholders = [];
+    let placeholderIndex = 0;
+    html = html.replace(/(<[^>]+>)/g, (match) => {
+        const placeholder = `__HTML_TAG_${placeholderIndex}__`;
+        htmlPlaceholders[placeholderIndex] = match;
+        placeholderIndex++;
+        return placeholder;
+    });
+    
+    // HTML 이스케이프
+    html = html
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    
+    // 줄바꿈 처리
+    html = html.replace(/\n/g, '<br>');
+    
+    // HTML 태그 복원
+    htmlPlaceholders.forEach((tag, index) => {
+        html = html.replace(`__HTML_TAG_${index}__`, tag);
+    });
+    
+    // 코드 블록 복원
+    codeBlocks.forEach((code, index) => {
+        const escapedCode = code
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        html = html.replace(`__CODE_BLOCK_${index}__`, `<pre><code>${escapedCode}</code></pre>`);
+    });
+    
+    // 인라인 코드 처리
+    html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    
+    // 강조 표시
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    
+    // 링크 변환
+    html = html.replace(
+        /(https?:\/\/[^\s<>\)]+)/g,
+        (match) => {
+            let fixedUrl = match
+                .replace(/xn--com[^\/]*/gi, 'com')
+                .replace(/\)[^\/]*/g, '')
+                .replace(/[^\/]$/, '');
+            
+            if (fixedUrl.includes('bithumb')) {
+                if (fixedUrl.includes('support.bithumb')) {
+                    fixedUrl = 'https://support.bithumb.com/hc/ko';
+                } else if (fixedUrl.includes('www.bithumb') || fixedUrl.includes('bithumb.com')) {
+                    fixedUrl = 'https://www.bithumb.com';
+                }
+            }
+            
+            return `<a href="${fixedUrl}" target="_blank" rel="noopener noreferrer">${fixedUrl}</a>`;
+        }
+    );
+    
+    // 연속된 <br>를 단락 구분으로 변환
+    html = html.replace(/(<br>\s*){2,}(?![^<]*<\/[ou]l>)/g, '</p><p>');
+    html = '<p>' + html + '</p>';
+    html = html.replace(/<p>\s*<\/p>/g, '');
+    html = html.replace(/<p>(<pre>)/g, '$1');
+    html = html.replace(/(<\/pre>)<\/p>/g, '$1');
+    html = html.replace(/<p>(<[ou]l>)/g, '$1');
+    html = html.replace(/(<\/[ou]l>)<\/p>/g, '$1');
+    
+    return html;
+}
+
+function showLoading() {
+    const messagesContainer = document.getElementById('chatMessages');
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'message assistant';
+    loadingDiv.id = 'loadingMessage';
+    
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble loading';
+    bubble.innerHTML = `
+        <div class="loading-dot"></div>
+        <div class="loading-dot"></div>
+        <div class="loading-dot"></div>
+    `;
+    
+    loadingDiv.appendChild(bubble);
+    messagesContainer.appendChild(loadingDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    return 'loadingMessage';
+}
+
+function hideLoading(loadingId) {
+    const loading = document.getElementById(loadingId);
+    if (loading) {
+        loading.remove();
+    }
+}
+
+async function clearChat() {
+    if (!confirm('대화 기록을 모두 삭제하시겠습니까?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/chat/history/${sessionId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const messagesContainer = document.getElementById('chatMessages');
+            messagesContainer.innerHTML = `
+                <div class="empty-state">
+                    <h2>안녕하세요! 👋</h2>
+                    <p>블록체인과 빗썸 거래소에 관련된 질문을 해주세요.</p>
+                    <p style="margin-top: var(--space-md); font-size: var(--font-size-sm);">
+                        트랜잭션 조회, FAQ 검색, 블록체인 정보 등 무엇이든 물어보세요.
+                    </p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('대화 기록 삭제 실패:', error);
+        alert('대화 기록 삭제 중 오류가 발생했습니다.');
+    }
+}
+</script>
+{% endblock %}

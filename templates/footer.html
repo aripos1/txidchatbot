@@ -1,0 +1,169 @@
+<!-- 공통 Footer 컴포넌트 -->
+<footer class="site-footer">
+    <div class="footer-container">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3 class="footer-title">Multi Chain Explorer</h3>
+                <p class="footer-description">
+                    31개 블록체인 네트워크의 트랜잭션을 한 번에 조회하고,<br>
+                    AI 챗봇을 통해 블록체인 정보를 얻어보세요.
+                </p>
+            </div>
+            <div class="footer-section">
+                <h4 class="footer-subtitle">서비스</h4>
+                <nav class="footer-nav">
+                    <a href="/" class="footer-link">트랜잭션 조회</a>
+                    <a href="/chat" class="footer-link">AI 챗봇</a>
+                    <!-- <a href="/stk" class="footer-link">스테이킹 계산기</a>
+                    <a href="/compliance" class="footer-link">입출금 안내</a> -->
+                </nav>
+            </div>
+            <div class="footer-section">
+                <h4 class="footer-subtitle">법적 고지</h4>
+                <nav class="footer-nav">
+                    <a href="/privacy-policy" class="footer-link">개인정보처리방침</a>
+                    <a href="/terms-of-service" class="footer-link">이용약관</a>
+                </nav>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p class="footer-copyright">
+                © 2025 Multi Chain Explorer. All rights reserved.
+            </p>
+        </div>
+    </div>
+</footer>
+
+<style>
+.site-footer {
+    background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+    border-top: 1px solid var(--border-color);
+    margin-top: auto;
+    padding: var(--space-3xl) 0 var(--space-xl);
+    position: relative;
+}
+
+.site-footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--border-color) 50%, transparent 100%);
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 var(--space-lg);
+}
+
+.footer-content {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: var(--space-2xl);
+    margin-bottom: var(--space-xl);
+    padding-bottom: var(--space-xl);
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+.footer-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.footer-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary);
+    margin-bottom: var(--space-sm);
+}
+
+.footer-subtitle {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+}
+
+.footer-description {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    margin: 0;
+}
+
+.footer-nav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.footer-link {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all var(--transition-base);
+    position: relative;
+    padding-left: var(--space-sm);
+}
+
+.footer-link::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    opacity: 0;
+    transition: all var(--transition-base);
+    transform: translateX(-4px);
+}
+
+.footer-link:hover {
+    color: var(--color-primary);
+    padding-left: calc(var(--space-sm) + 12px);
+    font-weight: var(--font-weight-medium);
+}
+
+.footer-link:hover::before {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.footer-bottom {
+    text-align: center;
+    padding-top: var(--space-lg);
+}
+
+.footer-copyright {
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+    margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .footer-content {
+        grid-template-columns: 1fr;
+        gap: var(--space-xl);
+    }
+    
+    .footer-section {
+        text-align: center;
+    }
+    
+    .footer-nav {
+        align-items: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .site-footer {
+        padding: var(--space-xl) 0 var(--space-lg);
+    }
+    
+    .footer-container {
+        padding: 0 var(--space-md);
+    }
+}
+</style>

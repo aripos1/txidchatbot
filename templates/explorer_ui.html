@@ -1,1010 +1,203 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <title>블록체인 트랜잭션 탐색기</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    {% include "nav.html" %}
-    <style>
-        :root {
-            /* 색상 시스템 개선 */
-            --primary-color: #4a90e2; /* 부드러운 파란색 */
-            --primary-hover: #357ABD; /* 더 어두운 파란색 */
-            --secondary-color: #f0f2f5; /* 밝은 회색 배경 */
-            --accent-color: #5bc0de; /* 강조 색상 */
-            --text-primary: #34495e; /* 어두운 텍스트 */
-            --text-secondary: #7f8c8d; /* 보조 텍스트 */
-            --success-color: #2ecc71; /* 초록색 */
-            --warning-color: #f39c12; /* 주황색 */
-            --error-color: #e74c3c; /* 빨간색 */
-            --card-bg: #ffffff; /* 카드 배경 */
-            --card-border: #e0e6ed; /* 카드 테두리 */
-            --input-border: #dcdfe6; /* 입력 필드 테두리 */
-            --input-focus: #a8d5ff; /* 입력 필드 포커스 */
-            --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
-            --shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.12);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: var(--secondary-color);
-            color: var(--text-primary);
-            line-height: 1.6;
-            min-height: 100vh;
-            padding: 1.5rem;
-            padding-top: 80px; /* 헤더 높이만큼 상단 패딩 추가 */
-        }
-
-        .container {
-            max-width: 1000px; /* 너비 약간 줄임 */
-            margin: 2rem auto; /* 상하 여백 추가 */
-            padding: 2.5rem; /* 내부 패딩 증가 */
-            background-color: var(--card-bg);
-            border-radius: 1.25rem; /* 더 둥근 모서리 */
-            box-shadow: var(--shadow-lg); /* 더 깊은 그림자 */
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .header h1 {
-            font-size: 3rem; /* 더 큰 제목 */
-            font-weight: 800; /* 더 굵은 글씨 */
-            color: var(--primary-color);
-            margin-bottom: 0.75rem;
-            letter-spacing: -0.025em; /* 약간의 자간 조정 */
-        }
-
-        .header p {
-            color: var(--text-secondary);
-            font-size: 1.15rem; /* 약간 더 큰 부제목 */
-            max-width: 650px;
-            margin: 0 auto;
-        }
-
-        .cmc-button {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.85rem 1.5rem;
-            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 0.75rem;
-            font-weight: 600;
-            font-size: 0.95rem;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(46, 204, 113, 0.2);
-            margin-bottom: 1rem;
-            width: 100%;
-        }
-
-        .cmc-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
-            background: linear-gradient(135deg, #27ae60 0%, #219a52 100%);
-            text-decoration: none;
-            color: white;
-        }
-
-        .cmc-button img {
-            width: 24px;
-            height: 24px;
-            filter: brightness(0) invert(1);
-        }
-
-        /* 체인 정보 섹션 개선 */
-        .chain-info-section {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* 두 섹션이 유연하게 배치되도록 */
-            gap: 2rem; /* 간격 증가 */
-            margin-top: 3rem;
-            margin-bottom: 3rem;
-            align-items: stretch; /* 높이 일치 */
-        }
-
-        .chain-section {
-            background-color: var(--card-bg);
-            padding: 1.75rem; /* 패딩 증가 */
-            border-radius: 1rem; /* 더 둥근 모서리 */
-            box-shadow: var(--shadow-sm);
-            display: flex; /* 내부 요소 정렬을 위해 flex 사용 */
-            flex-direction: column;
-            height: 100%;
-        }
-
-        .chain-section h2 {
-            font-size: 1.25rem; /* 더 큰 제목 */
-            font-weight: 700;
-            color: var(--text-primary);
-            margin-bottom: 1.5rem; /* 하단 여백 증가 */
-            padding-bottom: 0.75rem;
-            border-bottom: 3px solid var(--primary-color); /* 더 굵은 하단 테두리 */
-            text-align: center; /* 중앙 정렬 */
-        }
-
-        .chain-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* 최소 너비 감소 */
-            gap: 0.8rem; /* 간격 감소 */
-            flex-grow: 1;
-            align-content: start;
-        }
-
-        .chain-card {
-            background-color: var(--card-bg);
-            padding: 0.8rem;
-            border-radius: 0.75rem;
-            border: 1px solid var(--card-border);
-            transition: all 0.25s ease;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            cursor: pointer;
-            min-height: 80px;
-            box-shadow: var(--shadow-sm);
-            text-decoration: none; /* 카드 자체에 밑줄 제거 */
-        }
-
-        .chain-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-sm);
-            border-color: var(--primary-color);
-            background-color: #f0f2f5;
-            text-decoration: none; /* 호버 시에도 밑줄 제거 */
-        }
-
-        /* .chain-card h3 { */
-        /*     font-size: 0.95rem; */
-        /*     font-weight: 600; */
-        /*     color: var(--text-primary); */
-        /*     white-space: normal; */
-        /*     overflow: visible; */
-        /*     text-overflow: clip; */
-        /*     width: auto; */
-        /*     margin: 0; */
-        /* } */
-
-        .chain-card .chain-symbol {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: var(--primary-color);
-            margin-bottom: 0.3rem;
-            line-height: 1.2;
-        }
-
-        .chain-card .chain-name {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            font-weight: 500;
-            text-align: center;
-            white-space: normal;
-            overflow: visible;
-            text-overflow: clip;
-            max-width: 100%;
-            line-height: 1.2;
-            word-break: break-word;
-        }
-
-        .chain-card .status {
-            display: none;
-        }
-
-        .chain-card .explorer-link {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            height: 100%;
-            color: inherit;
-            text-decoration: none !important; /* 링크 자체 밑줄 강제 제거 */
-        }
-
-        .chain-card .explorer-link:hover {
-            text-decoration: none !important; /* 호버 시에도 밑줄 강제 제거 */
-        }
-
-        .chain-card .explorer-link:visited {
-            color: var(--text-primary); /* 방문 후에도 기본 텍스트 색상 유지 */
-            text-decoration: none !important; /* 방문 후에도 밑줄 강제 제거 */
-        }
-
-        .chain-card .explorer-link h3,
-        .chain-card .explorer-link p { /* explorer-link 내부 h3와 p의 밑줄 제거 */
-            text-decoration: none !important;
-        }
-
-        .chain-card .explorer-link svg {
-            display: none;
-        }
-
-        /* .chain-card 내의 모든 텍스트 및 링크 관련 요소에서 밑줄 강제 제거 */
-        .chain-card a, 
-        .chain-card a:hover, 
-        .chain-card a:visited, 
-        .chain-card h3, 
-        .chain-card p {
-            text-decoration: none !important;
-        }
-
-        /* 검색 섹션 개선 (상단으로 이동) */
-        .search-section {
-            background-color: var(--card-bg);
-            padding: 2rem; /* 패딩 증가 */
-            border-radius: 1rem; /* 더 둥근 모서리 */
-            box-shadow: var(--shadow-sm); /* 부드러운 그림자 */
-            margin-bottom: 2.5rem; /* 결과 영역과 간격 */
-        }
-
-        .search-area {
-            display: flex;
-            gap: 1.25rem; /* 간격 증가 */
-            max-width: 700px; /* 너비 조정 */
-            margin: 0 auto;
-        }
-
-        .search-area input[type="text"] {
-            flex: 1;
-            padding: 1.1rem 1.4rem; /* 패딩 조정 */
-            font-size: 1.05rem; /* 폰트 크기 조정 */
-            border: 1px solid var(--input-border); /* 테두리 두께 조정 */
-            border-radius: 0.6rem; /* 둥근 모서리 */
-            background-color: var(--secondary-color); /* 배경색 변경 */
-            color: var(--text-primary);
-            transition: all 0.3s ease;
-        }
-
-        .search-area input[type="text"]:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 4px var(--input-focus); /* 그림자 효과 강화 */
-            background-color: var(--card-bg);
-        }
-
-        .search-area input[type="text"]::placeholder {
-            color: var(--text-secondary);
-            opacity: 0.7; /* 투명도 조정 */
-        }
-
-        .search-area button {
-            padding: 1.1rem 2.2rem; /* 패딩 조정 */
-            font-size: 1.05rem; /* 폰트 크기 조정 */
-            font-weight: 600; /* 글씨 굵기 */
-            color: white;
-            background-color: var(--primary-color);
-            border: none;
-            border-radius: 0.6rem; /* 둥근 모서리 */
-            cursor: pointer;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .search-area button:hover {
-            background-color: var(--primary-hover);
-            transform: translateY(-2px); /* 호버 효과 강화 */
-            box-shadow: var(--shadow); /* 그림자 효과 강화 */
-        }
-
-        .search-area button:active {
-            transform: translateY(0);
-            box-shadow: var(--shadow-sm);
-        }
-
-        /* 결과 영역 개선 (상단으로 이동) */
-        .result-area {
-            margin-top: 0;
-            background-color: var(--card-bg);
-            border-radius: 1rem; /* 더 둥근 모서리 */
-            box-shadow: var(--shadow-sm);
-            padding: 2rem; /* 패딩 증가 */
-        }
-
-        .result-area:empty {
-            display: none;
-        }
-
-        .transaction-card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 1rem;
-            padding: 1.25rem;
-            margin-bottom: 0.75rem;
-            transition: all 0.25s ease;
-            box-shadow: var(--shadow-sm);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .transaction-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-            background: var(--primary-color);
-        }
-
-        .transaction-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow);
-        }
-
-        .transaction-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--card-border);
-        }
-
-        .transaction-chain {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .transaction-card .chain-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.5rem 1rem;
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
-            color: white;
-            border-radius: 2rem;
-            font-size: 0.95rem;
-            font-weight: 600;
-            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.2);
-        }
-
-        .transaction-status {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.4rem 0.8rem;
-            border-radius: 1rem;
-            font-size: 0.85rem;
-            font-weight: 500;
-            margin-left: 0.75rem;
-        }
-
-        .status-confirmed {
-            background-color: rgba(46, 204, 113, 0.1);
-            color: var(--success-color);
-        }
-
-        .status-failed {
-            background-color: rgba(231, 76, 60, 0.1);
-            color: var(--error-color);
-        }
-
-        .status-pending {
-            background-color: rgba(243, 156, 18, 0.1);
-            color: var(--warning-color);
-        }
-
-        .transaction-card .explorer-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 0.75rem;
-            font-weight: 600;
-            font-size: 0.95rem;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.2);
-        }
-
-        .transaction-card .explorer-link:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
-            text-decoration: none;
-            color: white;
-        }
-
-        .transaction-card .info-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .transaction-card .info-item {
-            background-color: var(--secondary-color);
-            border-radius: 0.75rem;
-            padding: 0.75rem;
-            transition: all 0.2s ease;
-            width: 100%;
-        }
-
-        .transaction-card .info-item:hover {
-            background-color: #f8fafc;
-            transform: translateY(-1px);
-        }
-
-        .transaction-card .info-label {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            font-weight: 500;
-            margin-bottom: 0.35rem;
-        }
-
-        .transaction-card .info-value {
-            font-size: 0.95rem;
-            color: var(--text-primary);
-            word-break: break-all;
-            display: flex;
-            align-items: center;
-            gap: 0.35rem;
-            line-height: 1.3;
-            background-color: var(--card-bg);
-            padding: 0.5rem 0.75rem;
-            border-radius: 0.5rem;
-            border: 1px solid var(--card-border);
-        }
-
-        .transaction-card .copy-button {
-            padding: 0.4rem 0.8rem;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            background-color: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-            margin-left: auto;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .transaction-card .copy-button:hover {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        .transaction-card .copy-button::before {
-            content: '📋';
-            font-size: 0.9rem;
-        }
-
-        .transaction-card .copy-button.copied {
-            background-color: var(--success-color);
-            color: white;
-            border-color: var(--success-color);
-        }
-
-        .transaction-card .copy-button.copied::before {
-            content: '✓';
-        }
-
-        .transaction-note {
-            margin-top: 0.75rem;
-            padding: 0.6rem 0.75rem;
-            background-color: rgba(74, 144, 226, 0.1);
-            border-radius: 0.75rem;
-            color: var(--primary-color);
-            font-size: 0.9rem;
-            line-height: 1.3;
-            display: flex;
-            align-items: flex-start;
-            gap: 0.35rem;
-        }
-
-        .transaction-note::before {
-            content: 'ℹ️';
-            font-size: 1.1rem;
-            line-height: 1;
-        }
-
-        @media (max-width: 768px) {
-            .transaction-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 1rem;
-            }
-
-            .transaction-chain {
-                flex-wrap: wrap;
-            }
-
-            .transaction-card .explorer-link {
-                width: 100%;
-                justify-content: center;
-            }
-        }
-
-        /* 로딩 상태 스타일 개선 */
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1.5rem;
-            color: var(--text-secondary);
-            font-size: 1rem;
-            background-color: var(--secondary-color);
-            border-radius: 0.75rem; /* 더 둥근 모서리 */
-            margin: 1.5rem 0;
-            border: 1px dashed var(--card-border); /* 점선 테두리 */
-        }
-
-        .loading::after {
-            content: '';
-            width: 1.3rem;
-            height: 1.3rem;
-            margin-left: 0.8rem;
-            border: 3px solid var(--primary-color);
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* 에러 메시지 스타일 개선 */
-        .error-message {
-            background-color: #fef2f2; /* 더 부드러운 빨간색 배경 */
-            color: var(--error-color);
-            padding: 1.2rem 1.5rem;
-            border-radius: 0.75rem; /* 더 둥근 모서리 */
-            margin: 1.5rem 0;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-            border: 1px solid #fecaca; /* 더 부드러운 테두리 */
-            font-weight: 500;
-        }
-
-        .error-message::before {
-            content: '⚠️';
-            font-size: 1.2rem;
-            line-height: 1;
-        }
-
-        /* 반응형 디자인 개선 */
-        @media (max-width: 1024px) {
-            .container {
-                padding: 1.25rem;
-            }
-            .chain-info-section {
-                grid-template-columns: 1fr;
-                gap: 1.5rem;
-            }
-            .search-section, .result-area, .converter-section {
-                padding: 1.5rem;
-            }
-            .chain-grid {
-                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); /* 태블릿에서 최소 너비 조정 */
-            }
-            .transaction-card .info-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 2.2rem;
-            }
-            .header p {
-                font-size: 1rem;
-            }
-            .search-area, .input-group {
-                flex-direction: column;
-                gap: 1rem;
-            }
-            .search-area button, .converter-area button {
-                width: 100%;
-            }
-            .transaction-card .chain-badge {
-                font-size: 0.85rem;
-            }
-            .chain-grid {
-                grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); /* 모바일에서 최소 너비 조정 */
-            }
-            .chain-card {
-                min-height: 75px; /* 모바일에서 최소 높이 조정 */
-            }
-        }
-
-        @media (max-width: 768px) {
-            body {
-                padding: 1rem;
-                padding-top: 90px; /* 모바일 헤더 높이에 맞춤 */
-            }
-            .header h1 {
-                font-size: 2rem;
-            }
-            .header p {
-                font-size: 1rem;
-            }
-        }
-
-        @media (max-width: 480px) {
-            body {
-                padding: 0.75rem;
-                padding-top: 100px; /* 모바일 헤더가 세로로 길어짐 */
-            }
-            .container {
-                padding: 1rem;
-                margin: 0.5rem auto;
-            }
-            .header h1 {
-                font-size: 1.5rem;
-            }
-            .header p {
-                font-size: 0.9rem;
-            }
-            .chain-section h2 {
-                font-size: 1rem;
-            }
-            .chain-card {
-                padding: 0.6rem 0.7rem;
-                min-height: 70px;
-                font-size: 0.85rem;
-            }
-            .search-section, .result-area, .converter-section {
-                padding: 1rem;
-            }
-            .transaction-card .info-value, .output-area .result-value {
-                font-size: 0.85rem;
-            }
-            .converter-section h2 {
-                font-size: 1rem;
-            }
-            .chain-grid {
-                grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-                gap: 0.5rem;
-            }
-            input[type="text"], select {
-                font-size: 0.9rem;
-            }
-            button {
-                font-size: 0.9rem;
-                padding: 0.7rem 1.2rem;
-            }
-        }
-
-        /* 모달 스타일 */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.6); /* 더 진한 배경 오버레이 */
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            padding: 1.5rem; /* 패딩 조정 */
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background-color: var(--card-bg);
-            border-radius: 1rem; /* 더 둥근 모서리 */
-            box-shadow: var(--shadow-lg);
-            width: 100%;
-            max-width: 700px; /* 모달 너비 조정 */
-            max-height: 85vh; /* 최대 높이 조정 */
-            overflow-y: auto;
-            position: relative;
-            padding: 1.5rem; /* 모달 내부 패딩 추가 */
-        }
-
-        .modal-header {
-            padding: 0 0 1rem 0; /* 패딩 조정 */
-            border-bottom: 1px solid var(--card-border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            background-color: var(--card-bg);
-            z-index: 1;
-            margin-bottom: 1.5rem; /* 헤더 하단 여백 추가 */
-        }
-
-        .modal-header h2 {
-            font-size: 1.5rem; /* 더 큰 제목 */
-            font-weight: 700;
-            color: var(--text-primary);
-            margin: 0;
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            color: var(--text-secondary);
-            cursor: pointer;
-            padding: 0.5rem; /* 패딩 조정 */
-            font-size: 1.8rem; /* 더 큰 닫기 버튼 */
-            line-height: 1;
-            transition: color 0.2s ease;
-        }
-
-        .modal-close:hover {
-            color: var(--primary-color); /* 호버 색상 변경 */
-        }
-
-        .modal-body {
-            padding: 0; /* 바디 패딩 제거, 컨텐츠에서 직접 관리 */
-        }
-
-        /* Base64 변환기 개선 */
-        .converter-section {
-            background-color: var(--card-bg);
-            padding: 2rem; /* 패딩 증가 */
-            border-radius: 1rem; /* 더 둥근 모서리 */
-            box-shadow: var(--shadow-sm);
-            margin-top: 3rem; /* 상단 여백 증가 */
-        }
-
-        .converter-section h2 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 2rem; /* 하단 여백 증가 */
-            text-align: center;
-        }
-
-        .converter-area {
-            max-width: 700px; /* 너비 조정 */
-            margin: 0 auto;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 1.25rem; /* 간격 증가 */
-            margin-bottom: 2rem; /* 하단 여백 증가 */
-        }
-
-        .converter-area input[type="text"] {
-            flex: 1;
-            padding: 1.1rem 1.4rem; /* 패딩 조정 */
-            font-size: 1.05rem; /* 폰트 크기 조정 */
-            border: 1px solid var(--input-border); /* 테두리 두께 조정 */
-            border-radius: 0.6rem; /* 둥근 모서리 */
-            background-color: var(--secondary-color); /* 배경색 변경 */
-            color: var(--text-primary);
-            transition: all 0.3s ease;
-        }
-
-        .converter-area input[type="text"]:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 4px var(--input-focus); /* 그림자 효과 강화 */
-            background-color: var(--card-bg);
-        }
-
-        .converter-area button {
-            padding: 1.1rem 2.2rem; /* 패딩 조정 */
-            font-size: 1.05rem; /* 폰트 크기 조정 */
-            font-weight: 600; /* 글씨 굵기 */
-            color: white;
-            background-color: var(--primary-color);
-            border: none;
-            border-radius: 0.6rem; /* 둥근 모서리 */
-            cursor: pointer;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .converter-area button:hover {
-            background-color: var(--primary-hover);
-            transform: translateY(-2px); /* 호버 효과 강화 */
-            box-shadow: var(--shadow);
-        }
-
-        .converter-area button:active {
-            transform: translateY(0);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .output-area {
-            background-color: var(--secondary-color);
-            padding: 2rem; /* 패딩 증가 */
-            border-radius: 0.75rem; /* 더 둥근 모서리 */
-            border: 1px solid var(--card-border);
-        }
-
-        .output-area .result-item {
-            display: flex;
-            flex-direction: column;
-            gap: 0.6rem; /* 간격 조정 */
-            padding: 1.25rem; /* 패딩 증가 */
-            background-color: var(--card-bg);
-            border-radius: 0.75rem; /* 둥근 모서리 */
-            margin-bottom: 1.25rem; /* 하단 여백 증가 */
-            border: 1px solid var(--card-border);
-            box-shadow: var(--shadow-sm); /* 부드러운 그림자 */
-        }
-
-        .output-area .result-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .output-area .result-label {
-            font-size: 0.9rem; /* 폰트 크기 조정 */
-            color: var(--text-secondary);
-            font-weight: 500;
-            margin-bottom: 0.2rem; /* 레이블 하단 여백 */
-        }
-
-        .output-area .result-value {
-            font-size: 1rem; /* 폰트 크기 조정 */
-            color: var(--text-primary);
-            word-break: break-all;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            padding: 0.75rem 1rem; /* 패딩 조정 */
-            background-color: var(--card-bg);
-            border-radius: 0.5rem; /* 둥근 모서리 */
-            border: 1px solid var(--input-border); /* 테두리 조정 */
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.03); /* 내부 그림자 */
-        }
-
-        .output-area .copy-button {
-            padding: 0.4rem 0.8rem; /* 패딩 조정 */
-            font-size: 0.8rem; /* 폰트 크기 조정 */
-            color: var(--text-secondary);
-            background-color: var(--secondary-color);
-            border: 1px solid var(--card-border);
-            border-radius: 0.35rem; /* 둥근 모서리 */
-            cursor: pointer;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-            margin-left: auto; /* 오른쪽 정렬 */
-        }
-
-        .output-area .copy-button:hover {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-    </style>
-</head>
-<body>
-    <div class="container" x-data="appData()" x-init="null">
-        <div class="header">
-            <h1>블록체인 트랜잭션 탐색기</h1>
-            <p>여러 블록체인의 트랜잭션을 한 번에 검색하고 확인하세요</p>
+{% extends "base.html" %}
+
+{% block title %}블록체인 트랜잭션 탐색기{% endblock %}
+
+{% block meta_description %}31개 블록체인 네트워크의 트랜잭션을 한 번에 조회하고 확인하세요. Bitcoin, Ethereum, BNB Smart Chain, Polygon 등 다양한 체인을 지원합니다.{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/explorer.css">
+<link rel="stylesheet" href="/static/css/adsense.css">
+{% endblock %}
+
+{% block content %}
+<div class="page-container" x-data="appData()" x-init="init()">
+    <!-- Hero Section -->
+    <section class="page-header fade-in">
+        <h1 class="page-title">블록체인 트랜잭션 탐색기</h1>
+        <p class="page-subtitle">
+            31개 블록체인 네트워크의 트랜잭션을 한 번에 검색하고 확인하세요
+        </p>
+    </section>
+
+    <!-- AdSense: 헤더 아래 배너 광고 (728x90) -->
+    <div class="adsense-container adsense-header-banner">
+        <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
+        <!-- 예: <ins class="adsbygoogle" ...></ins> -->
+    </div>
+
+    <!-- Main Content with Sidebar Layout -->
+    <div class="adsense-optimized-layout">
+        <div class="content-with-sidebar">
+            <!-- Main Content Area -->
+            <div class="content-main">
+                <!-- Search Section -->
+                <section class="search-section card fade-in">
+                    <div class="search-area">
+                        <input 
+                            id="txid" 
+                            type="text" 
+                            class="search-input form-input" 
+                            placeholder="트랜잭션 해시를 입력하세요 (예: 0x...) 또는 Enter 키를 누르세요" 
+                            @keyup.enter="lookupTx()"
+                            autocomplete="off"
+                        />
+                        <button @click="lookupTx()" class="search-button btn btn-primary">
+                            <span>🔍</span>
+                            <span>트랜잭션 조회</span>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Result Area -->
+                <section class="result-area card fade-in" id="result"></section>
+
+                <!-- AdSense: 결과 아래 인라인 배너 광고 -->
+                <div class="adsense-container adsense-inline-banner" id="adsense-below-results" style="display: none;">
+                    <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
+                </div>
+
+                <!-- Chain Info Section -->
+                <section class="chain-info-section fade-in">
+        <!-- Supported Chains -->
+        <div class="chain-section card">
+            <h2>지원하는 체인</h2>
+            <div x-show="isLoadingChains" class="loading">
+                체인 정보를 불러오는 중입니다...
+            </div>
+            <div x-show="!isLoadingChains && supportedChains.length === 0" class="error-message">
+                지원하는 체인 정보가 없습니다.
+            </div>
+            <div class="chain-grid" x-show="!isLoadingChains && supportedChains.length > 0">
+                <template x-for="chain in supportedChains" :key="chain.name">
+                    <a :href="chain.explorer" target="_blank" rel="noopener noreferrer" class="chain-card">
+                        <div class="chain-symbol" x-text="chain.symbol"></div>
+                        <div class="chain-name" x-text="chain.name"></div>
+                    </a>
+                </template>
+            </div>
         </div>
 
-        <!-- 검색 섹션 (상단으로 이동) -->
-        <div class="search-section">
-            <div class="search-area">
+        <!-- External Chains -->
+        <div class="chain-section card">
+            <h2>추가 익스플로러</h2>
+            <a href="https://coinmarketcap.com/ko/" target="_blank" rel="noopener noreferrer" class="cmc-button">
+                <img src="https://s2.coinmarketcap.com/static/cloud/img/coinmarketcap_1.svg" alt="CMC Logo">
+                <span>CoinMarketCap</span>
+            </a>
+            <div class="external-chain-list" x-show="externalChains.length > 0">
+                <template x-for="chain in externalChains" :key="chain.name">
+                    <a :href="chain.explorer" target="_blank" rel="noopener noreferrer" class="external-chain-item">
+                        <span class="external-chain-name" x-text="chain.name"></span>
+                        <span class="external-chain-arrow">→</span>
+                    </a>
+                </template>
+            </div>
+        </section>
+
+                <!-- Section Divider with AdSense -->
+                <div class="section-divider">
+                    <div class="adsense-container adsense-inline-banner">
+                        <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
+                    </div>
+                </div>
+
+                <!-- Converter Section -->
+                <section class="converter-section card fade-in">
+        <h2>Base64 to HEX 변환기 (TON)</h2>
+        <div class="converter-area">
+            <div class="input-group">
                 <input 
-                    id="txid" 
+                    id="base64-input" 
                     type="text" 
-                    placeholder="트랜잭션 해시를 입력하세요" 
-                    @keyup.enter="lookupTx()"
+                    class="converter-input form-input" 
+                    placeholder="Base64 문자열을 입력하세요" 
+                    @keyup.enter="base64ToHex()"
+                    autocomplete="off"
                 />
-                <button @click="lookupTx()">트랜잭션 조회</button>
+                <button @click="base64ToHex()" class="btn btn-primary">
+                    변환하기
+                </button>
+            </div>
+            <div class="output-area" id="converter-output">
+                <p class="text-secondary text-center">결과가 여기에 표시됩니다.</p>
             </div>
         </div>
+    </section>
+            </div>
 
-        <!-- 결과 영역 (상단으로 이동) -->
-        <div class="result-area" id="result"></div>
+            <!-- Sidebar -->
+            <aside class="content-sidebar">
+                <!-- AdSense: 사이드바 상단 사각형 광고 (300x250) -->
+                <div class="adsense-container adsense-sidebar">
+                    <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
+                    <!-- 데스크톱: 300x250 또는 300x600 -->
+                </div>
 
-        <!-- 체인 정보 섹션 -->
-        <div class="chain-info-section">
-            <!-- 지원하는 체인 -->
-            <div class="chain-section">
-                <h2>지원하는 체인</h2>
-                <div x-show="isLoadingChains" class="loading">체인 정보를 불러오는 중입니다...</div>
-                <div x-show="!isLoadingChains && supportedChains.length === 0" class="error-message">지원하는 체인 정보가 없습니다.</div>
-                <div class="chain-grid" x-show="!isLoadingChains">
-                    <template x-for="chain in supportedChains" :key="chain.name">
-                        <a :href="chain.explorer" target="_blank" rel="noopener noreferrer" class="chain-card explorer-link">
-                            <h3 class="chain-symbol" x-text="chain.symbol"></h3>
-                            <p class="chain-name" x-text="chain.name"></p>
+                <!-- AdSense: 사이드바 중간 사각형 광고 (300x250) -->
+                <div class="adsense-container adsense-sidebar adsense-vertical">
+                    <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
+                    <!-- 데스크톱: 300x600 -->
+                </div>
+
+                <!-- Quick Links Card -->
+                <div class="card fade-in">
+                    <h3 class="section-title" style="margin-bottom: var(--space-md); padding-bottom: var(--space-sm); border-bottom: 2px solid var(--border-color-light);">
+                        빠른 링크
+                    </h3>
+                    <nav style="display: flex; flex-direction: column; gap: var(--space-sm);">
+                        <a href="/chat" class="btn btn-secondary" style="justify-content: flex-start;">
+                            <span>💬</span>
+                            <span>AI 챗봇</span>
                         </a>
-                    </template>
-                </div>
-            </div>
-
-            <!-- 추가 체인 익스플로러 -->
-            <div class="chain-section">
-                <h2>주소 바로가기</h2>
-                <a href="https://coinmarketcap.com/ko/" target="_blank" rel="noopener noreferrer" class="cmc-button">
-                    <img src="https://s2.coinmarketcap.com/static/cloud/img/coinmarketcap_1.svg" alt="CMC Logo">
-                    CoinMarketCap
-                </a>
-                <div class="chain-grid">
-                    <template x-for="chain in externalChains" :key="chain.name">
-                        <a :href="chain.explorer" target="_blank" rel="noopener noreferrer" class="chain-card explorer-link">
-                            <h3 class="chain-symbol" x-text="chain.name"></h3>
+                        <a href="https://coinmarketcap.com/ko/" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="justify-content: flex-start;">
+                            <span>📊</span>
+                            <span>CoinMarketCap</span>
                         </a>
-                    </template>
+                    </nav>
                 </div>
-            </div>
-        </div>
-
-        <!-- Base64 변환기 섹션 -->
-        <div class="converter-section">
-            <h2>Base64 to HEX 변환기 (TON)</h2>
-            <div class="converter-area">
-                <div class="input-group">
-                    <input 
-                        id="base64-input" 
-                        type="text" 
-                        placeholder="Base64 문자열을 입력하세요" 
-                        @keyup.enter="base64ToHex()"
-                    />
-                    <button @click="base64ToHex()">변환하기</button>
-                </div>
-                <div class="output-area" id="converter-output">
-                    결과가 여기에 표시됩니다.
-                </div>
-            </div>
+            </aside>
         </div>
     </div>
 
-    <script>
-        function appData() {
-            return {
-                supportedChains: [],
-                externalChains: [{name: 'Henesys', explorer: 'https://subnets.avax.network/henesys'}],
-                isLoading: false,
-                isLoadingChains: true,
-                error: null,
-                init() {
-                    this.fetchSupportedChains();
-                    // externalChains 데이터 업데이트
-                    this.externalChains = [
-                        {name: 'Henesys', explorer: 'https://subnets.avax.network/henesys'},
-                        {name: 'Paycoin', explorer: 'https://scan.payprotocol.io/'},
-                        {name: 'Vaulta', explorer: 'https://unicove.com/ko/vaulta'},
-                        {name: 'POKTscan', explorer: 'https://poktscan.com/'}
-                    ];
-                },
-                async fetchSupportedChains() {
-                    this.isLoadingChains = true;
-                    try {
-                        const res = await fetch('/api/chains');
-                        const data = await res.json();
-                        this.supportedChains = data.supportedChains;
-                    } catch (err) {
-                        console.error("지원 체인 정보를 불러오는 데 실패했습니다:", err);
-                        this.error = "지원 체인 정보를 불러오는 중 오류가 발생했습니다.";
-                    } finally {
-                        this.isLoadingChains = false;
-                    }
-                }
-            };
-        }
+    <!-- AdSense: 푸터 위 배너 광고 -->
+    <div class="adsense-container adsense-inline-banner" style="margin-top: var(--space-3xl);">
+        <!-- Google AdSense 광고 코드를 여기에 삽입하세요 -->
+    </div>
+</div>
+{% endblock %}
 
-        async function lookupTx() {
+{% block scripts %}
+<script>
+function appData() {
+    return {
+        supportedChains: [],
+        externalChains: [],
+        isLoading: false,
+        isLoadingChains: true,
+        error: null,
+        init() {
+            this.fetchSupportedChains();
+            this.externalChains = [
+                {name: 'Henesys', explorer: 'https://subnets.avax.network/henesys'},
+                {name: 'Paycoin', explorer: 'https://scan.payprotocol.io/'},
+                {name: 'Vaulta', explorer: 'https://unicove.com/ko/vaulta'},
+                {name: 'POKTscan', explorer: 'https://poktscan.com/'}
+            ];
+        },
+        async fetchSupportedChains() {
+            this.isLoadingChains = true;
+            try {
+                const res = await fetch('/api/chains');
+                const data = await res.json();
+                this.supportedChains = data.supportedChains || [];
+            } catch (err) {
+                console.error("지원 체인 정보를 불러오는 데 실패했습니다:", err);
+                this.error = "지원 체인 정보를 불러오는 중 오류가 발생했습니다.";
+            } finally {
+                this.isLoadingChains = false;
+            }
+        },
+        async lookupTx() {
             const txid = document.getElementById("txid").value.trim().replace(/ /g, '');
             const resultDiv = document.getElementById("result");
             
@@ -1014,29 +207,44 @@
                         트랜잭션 해시를 입력해주세요.
                     </div>
                 `;
+                resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 return;
             }
 
+            this.isLoading = true;
             resultDiv.innerHTML = '<div class="loading">트랜잭션을 조회하는 중입니다...</div>';
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
             try {
                 const res = await fetch(`/api/tx/${txid}`);
                 const data = await res.json();
 
-                if (!data.found) {
+                if (!data.found || !data.results || data.results.length === 0) {
                     resultDiv.innerHTML = `
                         <div class="error-message">
-                            체인에서 해당 트랜잭션을 찾을 수 없습니다.
+                            체인에서 해당 트랜잭션을 찾을 수 없습니다. 트랜잭션 해시를 확인해주세요.
                         </div>
                     `;
+                    // 결과가 없을 때는 광고 숨김
+                    document.getElementById('adsense-below-results').style.display = 'none';
                     return;
                 }
 
+                // 결과가 있을 때 광고 표시
+                const adsenseBelow = document.getElementById('adsense-below-results');
+                if (adsenseBelow) {
+                    adsenseBelow.style.display = 'flex';
+                    // 스크롤하여 광고가 보이도록
+                    setTimeout(() => {
+                        adsenseBelow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 300);
+                }
+
                 resultDiv.innerHTML = data.results.map(tx => `
-                    <div class="transaction-card">
+                    <div class="transaction-card fade-in">
                         <div class="transaction-header">
                             <div class="transaction-chain">
-                                <span class="chain-badge">${tx.symbol || tx.chain}</span>
+                                <span class="chain-badge">${tx.symbol || tx.chain || 'Unknown'}</span>
                                 ${tx.status ? `
                                     <span class="transaction-status status-${tx.status.toLowerCase()}">
                                         ${tx.status === 'confirmed' ? '✓ 확인됨' : 
@@ -1045,7 +253,7 @@
                                     </span>
                                 ` : ''}
                             </div>
-                            <a href="${tx.explorer}${tx.txid}" target="_blank" class="explorer-link">
+                            <a href="${tx.explorer}${tx.txid}" target="_blank" rel="noopener noreferrer" class="transaction-link">
                                 <span>탐색기에서 보기</span>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -1060,42 +268,50 @@
                                 <span class="info-label">트랜잭션 ID</span>
                                 <div class="info-value">
                                     ${tx.txid}
-                                    <button class="copy-button" onclick="copyToClipboard('${tx.txid}', event)">복사</button>
+                                    <button class="copy-button btn btn-sm" onclick="copyToClipboard('${tx.txid}', event)">복사</button>
                                 </div>
                             </div>
 
-                            <div class="info-item">
-                                <span class="info-label">보낸 주소</span>
-                                <div class="info-value">
-                                    ${tx.from || 'N/A'}
-                                    ${tx.from ? `<button class="copy-button" onclick="copyToClipboard('${tx.from}', event)">복사</button>` : ''}
+                            ${tx.from ? `
+                                <div class="info-item">
+                                    <span class="info-label">보낸 주소</span>
+                                    <div class="info-value">
+                                        ${tx.from}
+                                        <button class="copy-button btn btn-sm" onclick="copyToClipboard('${tx.from}', event)">복사</button>
+                                    </div>
                                 </div>
-                            </div>
+                            ` : ''}
 
-                            <div class="info-item">
-                                <span class="info-label">받는 주소</span>
-                                <div class="info-value">
-                                    ${tx.to || 'N/A'}
-                                    ${tx.to ? `<button class="copy-button" onclick="copyToClipboard('${tx.to}', event)">복사</button>` : ''}
+                            ${tx.to ? `
+                                <div class="info-item">
+                                    <span class="info-label">받는 주소</span>
+                                    <div class="info-value">
+                                        ${tx.to}
+                                        <button class="copy-button btn btn-sm" onclick="copyToClipboard('${tx.to}', event)">복사</button>
+                                    </div>
                                 </div>
-                            </div>
+                            ` : ''}
 
-                            <div class="info-item">
-                                <span class="info-label">금액</span>
-                                <div class="info-value">${tx.value || 'N/A'}</div>
-                            </div>
+                            ${tx.value ? `
+                                <div class="info-item">
+                                    <span class="info-label">금액</span>
+                                    <div class="info-value">${tx.value}</div>
+                                </div>
+                            ` : ''}
 
-                            <div class="info-item">
-                                <span class="info-label">블록 번호</span>
-                                <div class="info-value">${tx.blockNumber || 'N/A'}</div>
-                            </div>
+                            ${tx.blockNumber ? `
+                                <div class="info-item">
+                                    <span class="info-label">블록 번호</span>
+                                    <div class="info-value">${tx.blockNumber}</div>
+                                </div>
+                            ` : ''}
 
                             ${tx.destination_tag != null ? `
                                 <div class="info-item">
                                     <span class="info-label">Destination Tag</span>
                                     <div class="info-value">
                                         ${tx.destination_tag}
-                                        <button class="copy-button" onclick="copyToClipboard('${tx.destination_tag}', event)">복사</button>
+                                        <button class="copy-button btn btn-sm" onclick="copyToClipboard('${tx.destination_tag}', event)">복사</button>
                                     </div>
                                 </div>
                             ` : ''}
@@ -1113,47 +329,14 @@
                 resultDiv.innerHTML = `
                     <div class="error-message">
                         오류가 발생했습니다. 다시 시도해주세요.
+                        <br><small>${error.message || '알 수 없는 오류'}</small>
                     </div>
                 `;
+            } finally {
+                this.isLoading = false;
             }
-        }
-
-        async function copyToClipboard(text, event) {
-            let success = false;
-            try {
-                await navigator.clipboard.writeText(text);
-                success = true;
-            } catch (err) {
-                console.warn('Async Clipboard API not available or failed, falling back to document.execCommand:', err);
-                const textArea = document.createElement("textarea");
-                textArea.value = text;
-                textArea.style.position = "fixed";
-                textArea.style.left = "-999999px";
-                textArea.style.top = "-999999px";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    success = true;
-                } catch (execErr) {
-                    console.error('클립보드 복사 실패 (execCommand):', execErr);
-                    alert("클립보드 복사에 실패했습니다.");
-                } finally {
-                    document.body.removeChild(textArea);
-                }
-            }
-
-            if (success) {
-                const button = event.target;
-                button.classList.add('copied');
-                setTimeout(() => {
-                    button.classList.remove('copied');
-                }, 2000);
-            }
-        }
-
-        function base64ToHex() {
+        },
+        base64ToHex() {
             const base64Input = document.getElementById("base64-input").value.trim();
             const outputArea = document.getElementById("converter-output");
             
@@ -1179,18 +362,18 @@
                 const hexResult = hexString.toUpperCase();
 
                 outputArea.innerHTML = `
-                    <div class="result-item">
+                    <div class="result-item fade-in">
                         <span class="result-label">입력 Base64</span>
                         <div class="result-value">
                             ${base64Input}
-                            <button class="copy-button" onclick="copyToClipboard('${base64Input}', event)">복사</button>
+                            <button class="copy-button btn btn-sm" onclick="copyToClipboard('${base64Input}', event)">복사</button>
                         </div>
                     </div>
-                    <div class="result-item">
+                    <div class="result-item fade-in">
                         <span class="result-label">HEX 결과</span>
                         <div class="result-value">
                             ${hexResult}
-                            <button class="copy-button" onclick="copyToClipboard('${hexResult}', event)">복사</button>
+                            <button class="copy-button btn btn-sm" onclick="copyToClipboard('${hexResult}', event)">복사</button>
                         </div>
                     </div>
                 `;
@@ -1198,11 +381,53 @@
                 outputArea.innerHTML = `
                     <div class="error-message">
                         유효하지 않은 Base64 문자열입니다.
+                        <br><small>${e.message || '디코딩 오류'}</small>
                     </div>
                 `;
                 console.error("Base64 디코딩 오류:", e);
             }
         }
-    </script>
-</body>
-</html>
+    };
+}
+
+async function copyToClipboard(text, event) {
+    let success = false;
+    try {
+        await navigator.clipboard.writeText(text);
+        success = true;
+    } catch (err) {
+        console.warn('Async Clipboard API not available, falling back to execCommand:', err);
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            success = true;
+        } catch (execErr) {
+            console.error('클립보드 복사 실패:', execErr);
+            alert("클립보드 복사에 실패했습니다.");
+        } finally {
+            document.body.removeChild(textArea);
+        }
+    }
+
+    if (success) {
+        const button = event.target.closest('button');
+        if (button) {
+            const originalText = button.textContent;
+            button.classList.add('copied');
+            button.textContent = '✓ 복사됨';
+            setTimeout(() => {
+                button.classList.remove('copied');
+                button.textContent = originalText;
+            }, 2000);
+        }
+    }
+}
+</script>
+{% endblock %}

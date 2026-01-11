@@ -1,0 +1,189 @@
+/* ===================================
+   Google AdSense 광고 최적화 스타일
+   =================================== */
+
+/* AdSense 광고 컨테이너 기본 스타일 */
+.adsense-container {
+    width: 100%;
+    margin: var(--space-xl) 0;
+    display: none; /* 승인 전에는 기본적으로 숨김 */
+    justify-content: center;
+    align-items: center;
+    min-height: 100px;
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    border: 1px dashed var(--border-color);
+    position: relative;
+}
+
+/* 광고 코드가 삽입되면 자동으로 표시 (JavaScript에서 has-ads 클래스 추가) */
+.adsense-container.has-ads {
+    display: flex;
+}
+
+/* 광고가 있을 때 표시 */
+.adsense-container ins {
+    position: relative;
+    z-index: 1;
+    display: block;
+}
+
+/* Placeholder 텍스트는 완전히 제거 (승인 전에는 영역 자체가 보이지 않음) */
+.adsense-container::before {
+    display: none;
+}
+
+/* 헤더 아래 배너 광고 */
+.adsense-header-banner {
+    width: 100%;
+    max-width: 728px;
+    min-height: 90px;
+    margin: var(--space-lg) auto;
+}
+
+/* 사이드바 광고 (데스크톱) */
+.adsense-sidebar {
+    width: 100%;
+    max-width: 300px;
+    min-height: 250px;
+    margin: 0 auto;
+    position: sticky;
+    top: calc(72px + var(--space-lg));
+}
+
+.adsense-sidebar.adsense-vertical {
+    min-height: 600px;
+    max-width: 300px;
+}
+
+/* 콘텐츠 중간 배너 광고 */
+.adsense-inline-banner {
+    width: 100%;
+    max-width: 728px;
+    min-height: 90px;
+    margin: var(--space-2xl) auto;
+}
+
+/* 콘텐츠 중간 사각형 광고 */
+.adsense-inline-square {
+    width: 100%;
+    max-width: 300px;
+    min-height: 250px;
+    margin: var(--space-xl) auto;
+}
+
+/* 모바일 광고 */
+.adsense-mobile {
+    width: 100%;
+    min-height: 100px;
+    margin: var(--space-lg) auto;
+}
+
+.adsense-mobile-banner {
+    width: 100%;
+    min-height: 50px;
+    margin: var(--space-md) auto;
+}
+
+/* 광고 레이블 (선택사항) */
+.adsense-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    text-align: center;
+    margin-bottom: var(--space-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: var(--font-weight-medium);
+}
+
+/* 2-Column 레이아웃 (메인 + 사이드바) */
+.content-with-sidebar {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: var(--space-xl);
+    align-items: start;
+    margin-top: var(--space-xl);
+}
+
+.content-main {
+    min-width: 0; /* Grid 오버플로우 방지 */
+}
+
+.content-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+/* 반응형: 모바일에서는 사이드바가 아래로 */
+@media (max-width: 1024px) {
+    .content-with-sidebar {
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+    }
+    
+    .content-sidebar {
+        order: -1; /* 모바일에서는 사이드바가 위로 */
+    }
+    
+    .adsense-sidebar {
+        position: relative;
+        top: 0;
+        max-width: 100%;
+        margin: 0 auto;
+    }
+}
+
+/* 광고 최적화 레이아웃 */
+.adsense-optimized-layout {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 var(--space-lg);
+}
+
+/* 콘텐츠 섹션 간 광고 배치 */
+.section-divider {
+    margin: var(--space-3xl) 0;
+    padding: var(--space-xl) 0;
+    border-top: 1px solid var(--border-color-light);
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+/* 광고가 로드되었을 때의 스타일 */
+.adsense-container.loaded {
+    border: none;
+    background-color: transparent;
+    padding: 0;
+}
+
+.adsense-container.loaded::before {
+    display: none;
+}
+
+/* 텍스트 광고 스타일 */
+.adsense-text-ad {
+    padding: var(--space-md);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    margin: var(--space-lg) 0;
+}
+
+/* 애니메이션 (광고 로드 시) */
+@keyframes fadeInAd {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.adsense-container.loaded {
+    animation: fadeInAd 0.3s ease-out;
+}
+
+/* 접근성: 광고 영역 스킵 (선택사항) */
+.adsense-container[aria-label]::before {
+    content: attr(aria-label);
+}
