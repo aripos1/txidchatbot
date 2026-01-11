@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}관리자 로그인{% endblock %}
+
+{% block meta_description %}관리자 로그인 페이지{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/admin.css">
+{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1 class="login-title">관리자 로그인</h1>
+                <p class="login-description">문의사항 관리 페이지에 접속하려면 비밀번호를 입력하세요.</p>
+            </div>
+
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="password" class="form-label">
+                        비밀번호
+                    </label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        class="form-input" 
+                        placeholder="관리자 비밀번호를 입력하세요"
+                        required
+                        autocomplete="current-password"
+                        autofocus
+                    >
+                    <span class="form-error" id="passwordError"></span>
+                </div>
+
+                <input type="hidden" id="redirectUrl" value="{{ redirect_url }}">
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-login" id="submitBtn">
+                        <span class="btn-text">로그인</span>
+                        <span class="btn-loader" id="submitLoader" style="display: none;">
+                            <span class="spinner"></span>
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('loginForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitLoader = document.getElementById('submitLoader');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const passwordInput = document.getElementById('password');
+    const redirectUrl = document.getElementById('redirectUrl').value;
+    
+    // 폼 제출 처리
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const password = passwordInput.value.trim();
+        
+        // 에러 메시지 초기화
+        document.getElementById('passwordError').textContent = '';
+        
+        if (!password) {
+            document.getElementById('passwordError').textContent = '비밀번호를 입력해주세요.';
+            return;
+        }
+        
+        // 제출 버튼 비활성화
+        submitBtn.disabled = true;
+        btnText.textContent = '로그인 중...';
+        submitLoader.style.display = 'inline-block';
+        
+        try {
+            const response = await fetch('/admin/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    password: password,
+                    redirect_url: redirectUrl
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                // 로그인 성공 - 리다이렉트
+                window.location.href = data.redirect_url || '/admin/inquiries';
+            } else {
+                // 에러 메시지 표시
+                const errorMsg = data.message || '로그인에 실패했습니다. 비밀번호를 확인해주세요.';
+                document.getElementById('passwordError').textContent = errorMsg;
+                passwordInput.focus();
+                
+                // 제출 버튼 활성화
+                submitBtn.disabled = false;
+                btnText.textContent = '로그인';
+                submitLoader.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('passwordError').textContent = '로그인 중 오류가 발생했습니다. 다시 시도해주세요.';
+            
+            // 제출 버튼 활성화
+            submitBtn.disabled = false;
+            btnText.textContent = '로그인';
+            submitLoader.style.display = 'none';
+        }
+    });
+    
+    // Enter 키로 제출
+    passwordInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            form.dispatchEvent(new Event('submit'));
+        }
+    });
+});
+</script>
+{% endblock %}

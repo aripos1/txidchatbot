@@ -1,7 +1,10 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse, Response, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from src.services.transaction_service import detect_transaction
 from src.services.chain_configs import get_chain_configs
 from chatbot import mongodb_client, get_chatbot_graph, vector_store, config
@@ -145,6 +148,15 @@ logger.info("="*60)
 
 app = FastAPI(title="Multi-Chain Transaction Lookup", version="1.0.0")
 
+# 세션 미들웨어 추가 (관리자 인증용)
+# AWS 환경에서는 HTTPS를 사용하므로 secure 쿠키 필요
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET_KEY", "your-secret-key-change-this-in-production"),
+    max_age=86400,  # 24시간
+    same_site="lax"
+)
+
 # CORS 설정 추가 (AWS 배포용)
 app.add_middleware(
     CORSMiddleware,
@@ -155,6 +167,11 @@ app.add_middleware(
 )
 
 templates = Jinja2Templates(directory="templates")
+
+# Static 파일 디렉토리 마운트
+import os
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 CHAIN_CONFIGS = get_chain_configs()
 
@@ -198,25 +215,48 @@ async def startup_event():
     
     logger.info("="*60)
     
-    try:
-        # 대화 기록용 MongoDB 연결
-        logger.info("MongoDB 연결 시도 중...")
-        connected = await mongodb_client.connect()
-        if not connected:
-            logger.warning("MongoDB 연결 실패 - 챗봇 기능이 제한될 수 있습니다.")
-        else:
-            logger.info("✅ MongoDB 연결 성공!")
-        
-        # 벡터 DB 연결
-        logger.info("벡터 DB 연결 시도 중...")
-        vector_connected = await vector_store.connect()
-        if not vector_connected:
-            logger.warning("벡터 DB 연결 실패 - 벡터 검색 기능이 제한될 수 있습니다.")
-        else:
-            logger.info("✅ 벡터 DB 연결 성공!")
-    except Exception as e:
-        logger.error(f"MongoDB 연결 시도 중 오류 발생: {e}", exc_info=True)
-        logger.warning("챗봇 기능은 제한될 수 있지만, 서버는 계속 실행됩니다.")
+    # MongoDB 및 벡터 DB 연결을 별도 태스크로 실행하여 서버 시작을 블로킹하지 않음
+    async def connect_databases():
+        """데이터베이스 연결을 비동기로 실행 (서버 시작을 블로킹하지 않음)"""
+        try:
+            # 대화 기록용 MongoDB 연결
+            logger.info("MongoDB 연결 시도 중...")
+            try:
+                # 타임아웃 설정 (5초)
+                connected = await asyncio.wait_for(mongodb_client.connect(), timeout=5.0)
+                if not connected:
+                    logger.warning("MongoDB 연결 실패 - 챗봇 기능이 제한될 수 있습니다.")
+                else:
+                    logger.info("✅ MongoDB 연결 성공!")
+            except asyncio.TimeoutError:
+                logger.warning("MongoDB 연결 타임아웃 (5초) - 챗봇 기능이 제한될 수 있습니다.")
+            except asyncio.CancelledError:
+                logger.warning("MongoDB 연결이 취소되었습니다 - 챗봇 기능이 제한될 수 있습니다.")
+            except Exception as e:
+                logger.warning(f"MongoDB 연결 실패: {e} - 챗봇 기능이 제한될 수 있습니다.")
+            
+            # 벡터 DB 연결
+            logger.info("벡터 DB 연결 시도 중...")
+            try:
+                # 타임아웃 설정 (5초)
+                vector_connected = await asyncio.wait_for(vector_store.connect(), timeout=5.0)
+                if not vector_connected:
+                    logger.warning("벡터 DB 연결 실패 - 벡터 검색 기능이 제한될 수 있습니다.")
+                else:
+                    logger.info("✅ 벡터 DB 연결 성공!")
+            except asyncio.TimeoutError:
+                logger.warning("벡터 DB 연결 타임아웃 (5초) - 벡터 검색 기능이 제한될 수 있습니다.")
+            except asyncio.CancelledError:
+                logger.warning("벡터 DB 연결이 취소되었습니다 - 벡터 검색 기능이 제한될 수 있습니다.")
+            except Exception as e:
+                logger.warning(f"벡터 DB 연결 실패: {e} - 벡터 검색 기능이 제한될 수 있습니다.")
+                
+        except Exception as e:
+            logger.error(f"데이터베이스 연결 시도 중 예상치 못한 오류 발생: {e}", exc_info=True)
+            logger.warning("챗봇 기능은 제한될 수 있지만, 서버는 계속 실행됩니다.")
+    
+    # 백그라운드 태스크로 실행 (서버 시작을 블로킹하지 않음)
+    asyncio.create_task(connect_databases())
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -276,6 +316,289 @@ async def bithumb_guide_page(request: Request):
 @app.get("/compliance", response_class=HTMLResponse)
 async def bithumb_compliance_page(request: Request):
     return templates.TemplateResponse("compliance.html", {"request": request})
+
+@app.get("/privacy-policy", response_class=HTMLResponse)
+async def privacy_policy_page(request: Request):
+    """개인정보처리방침 페이지"""
+    return templates.TemplateResponse("privacy_policy.html", {"request": request})
+
+@app.get("/terms-of-service", response_class=HTMLResponse)
+async def terms_of_service_page(request: Request):
+    """이용약관 페이지"""
+    return templates.TemplateResponse("terms_of_service.html", {"request": request})
+
+@app.get("/contact", response_class=HTMLResponse)
+async def contact_page(request: Request):
+    """문의사항 페이지"""
+    return templates.TemplateResponse("contact.html", {"request": request})
+
+@app.get("/admin/login", response_class=HTMLResponse)
+async def admin_login_page(request: Request):
+    """관리자 로그인 페이지"""
+    # 이미 로그인되어 있으면 관리자 페이지로 리다이렉트
+    if is_admin_authenticated(request):
+        return RedirectResponse(url="/admin/inquiries", status_code=303)
+    
+    redirect_url = request.query_params.get("redirect", "/admin/inquiries")
+    return templates.TemplateResponse("admin_login.html", {"request": request, "redirect_url": redirect_url})
+
+@app.post("/admin/login")
+async def admin_login(request: Request):
+    """관리자 로그인 API"""
+    try:
+        data = await request.json()
+        password = data.get("password", "")
+        
+        if verify_admin_password(password):
+            request.session["admin_authenticated"] = True
+            redirect_url = data.get("redirect_url", "/admin/inquiries")
+            logger.info(f"관리자 로그인 성공: {request.client.host if request.client else 'unknown'}")
+            
+            # 세션 쿠키 설정 (AWS 환경 대응)
+            response = JSONResponse(
+                content={"success": True, "redirect_url": redirect_url}
+            )
+            # 세션 쿠키가 제대로 설정되도록 명시적으로 설정
+            # SessionMiddleware가 자동으로 처리하지만, 명시적으로 설정
+            return response
+        else:
+            logger.warning(f"관리자 로그인 실패: {request.client.host if request.client else 'unknown'}")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "비밀번호가 일치하지 않습니다."}
+            )
+    except Exception as e:
+        logger.error(f"관리자 로그인 API 오류: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "서버 오류가 발생했습니다."}
+        )
+
+@app.post("/admin/logout")
+async def admin_logout(request: Request):
+    """관리자 로그아웃 API"""
+    request.session.clear()
+    return JSONResponse(
+        content={"success": True, "message": "로그아웃되었습니다."}
+    )
+
+@app.get("/admin/inquiries", response_class=HTMLResponse)
+async def admin_inquiries_page(request: Request):
+    """문의사항 관리 페이지"""
+    # 인증 확인
+    redirect = await require_admin_auth(request)
+    if redirect:
+        return redirect
+    
+    return templates.TemplateResponse("admin_inquiries.html", {"request": request})
+
+@app.post("/api/contact")
+async def submit_contact(request: Request):
+    """문의사항 제출 API"""
+    try:
+        data = await request.json()
+        
+        email = data.get("email", "").strip()
+        category = data.get("category", "").strip()
+        subject = data.get("subject", "").strip()
+        message = data.get("message", "").strip()
+        
+        # 유효성 검사
+        if not email:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "이메일을 입력해주세요."}
+            )
+        
+        if not email or "@" not in email:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "올바른 이메일 형식을 입력해주세요."}
+            )
+        
+        if not category:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "문의 유형을 선택해주세요."}
+            )
+        
+        if not subject:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "제목을 입력해주세요."}
+            )
+        
+        if not message:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "내용을 입력해주세요."}
+            )
+        
+        # MongoDB에 저장
+        result = await mongodb_client.save_inquiry(
+            email=email,
+            category=category,
+            subject=subject,
+            message=message,
+            metadata={
+                "user_agent": request.headers.get("user-agent", ""),
+                "ip_address": request.client.host if request.client else None
+            }
+        )
+        
+        if result:
+            logger.info(f"문의사항 저장 성공: {email} - {subject}")
+            return JSONResponse(
+                content={"success": True, "message": "문의사항이 성공적으로 전송되었습니다."}
+            )
+        else:
+            logger.error(f"문의사항 저장 실패: {email} - {subject}")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": "문의사항 전송에 실패했습니다. 다시 시도해주세요."}
+            )
+            
+    except Exception as e:
+        logger.error(f"문의사항 API 오류: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "서버 오류가 발생했습니다. 나중에 다시 시도해주세요."}
+        )
+
+def verify_admin_password(password: str) -> bool:
+    """관리자 비밀번호 확인"""
+    admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
+    return password == admin_password
+
+def is_admin_authenticated(request: Request) -> bool:
+    """관리자 인증 여부 확인"""
+    return request.session.get("admin_authenticated", False)
+
+async def require_admin_auth(request: Request):
+    """관리자 인증 필요 시 로그인 페이지로 리다이렉트"""
+    if not is_admin_authenticated(request):
+        return RedirectResponse(url="/admin/login?redirect=" + str(request.url.path), status_code=303)
+    return None
+
+@app.get("/api/admin/inquiries")
+async def get_inquiries(request: Request):
+    """문의사항 목록 조회 API"""
+    try:
+        # 인증 확인
+        if not is_admin_authenticated(request):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "인증이 필요합니다."}
+            )
+        
+        # 쿼리 파라미터
+        status = request.query_params.get("status", None)
+        limit = int(request.query_params.get("limit", 100))
+        skip = int(request.query_params.get("skip", 0))
+        
+        # MongoDB에서 조회
+        inquiries = await mongodb_client.get_inquiries(limit=limit, skip=skip, status=status)
+        
+        return JSONResponse(
+            content={"success": True, "inquiries": inquiries}
+        )
+    except Exception as e:
+        logger.error(f"문의사항 조회 API 오류: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "서버 오류가 발생했습니다."}
+        )
+
+@app.get("/api/admin/inquiries/stats")
+async def get_inquiry_stats(request: Request):
+    """문의사항 통계 API"""
+    try:
+        # 인증 확인
+        if not is_admin_authenticated(request):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "인증이 필요합니다."}
+            )
+        
+        # 통계 조회
+        total = await mongodb_client.get_inquiry_count()
+        pending = await mongodb_client.get_inquiry_count(status="pending")
+        replied = await mongodb_client.get_inquiry_count(status="replied")
+        closed = await mongodb_client.get_inquiry_count(status="closed")
+        
+        return JSONResponse(
+            content={
+                "success": True,
+                "total": total,
+                "pending": pending,
+                "replied": replied,
+                "closed": closed
+            }
+        )
+    except Exception as e:
+        logger.error(f"문의사항 통계 API 오류: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "서버 오류가 발생했습니다."}
+        )
+
+@app.post("/api/admin/inquiries/{inquiry_id}/status")
+async def update_inquiry_status(inquiry_id: str, request: Request):
+    """문의사항 상태 업데이트 API"""
+    try:
+        # 인증 확인
+        if not is_admin_authenticated(request):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "인증이 필요합니다."}
+            )
+        
+        data = await request.json()
+        
+        # 상태 업데이트
+        status = data.get("status", "")
+        if status not in ["pending", "replied", "closed"]:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "유효하지 않은 상태입니다."}
+            )
+        
+        result = await mongodb_client.update_inquiry_status(inquiry_id, status)
+        
+        if result:
+            logger.info(f"문의사항 상태 업데이트 성공: {inquiry_id} -> {status}")
+            return JSONResponse(
+                content={"success": True, "message": "상태가 업데이트되었습니다."}
+            )
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "문의사항을 찾을 수 없습니다."}
+            )
+    except Exception as e:
+        logger.error(f"문의사항 상태 업데이트 API 오류: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "서버 오류가 발생했습니다."}
+        )
+
+@app.get("/robots.txt")
+async def robots_txt():
+    """robots.txt 파일 제공"""
+    robots_path = "static/robots.txt"
+    if os.path.exists(robots_path):
+        return FileResponse(robots_path, media_type="text/plain")
+    else:
+        return Response(content="User-agent: *\nAllow: /", media_type="text/plain")
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    """sitemap.xml 파일 제공"""
+    sitemap_path = "static/sitemap.xml"
+    if os.path.exists(sitemap_path):
+        return FileResponse(sitemap_path, media_type="application/xml")
+    else:
+        return Response(content="<?xml version='1.0' encoding='UTF-8'?><urlset></urlset>", media_type="application/xml")
 
 @app.post("/api/bithumb/test")
 async def test_bithumb_api(request: Request):

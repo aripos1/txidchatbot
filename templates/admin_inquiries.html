@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+
+{% block title %}문의사항 관리{% endblock %}
+
+{% block meta_description %}문의사항을 확인하고 관리하세요.{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/admin.css">
+{% endblock %}
+
+{% block content %}
+<div class="admin-page" x-data="adminData()" x-init="init()">
+    <div class="admin-container">
+        <div class="admin-header">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl);">
+                <h1 class="admin-title">문의사항 관리</h1>
+                <button @click="logout()" class="btn-logout">로그아웃</button>
+            </div>
+            <div class="admin-stats">
+                <div class="stat-card">
+                    <div class="stat-label">전체</div>
+                    <div class="stat-value" x-text="totalCount">0</div>
+                </div>
+                <div class="stat-card stat-pending">
+                    <div class="stat-label">대기중</div>
+                    <div class="stat-value" x-text="pendingCount">0</div>
+                </div>
+                <div class="stat-card stat-replied">
+                    <div class="stat-label">답변완료</div>
+                    <div class="stat-value" x-text="repliedCount">0</div>
+                </div>
+                <div class="stat-card stat-closed">
+                    <div class="stat-label">종료</div>
+                    <div class="stat-value" x-text="closedCount">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-filters">
+            <select x-model="filterStatus" @change="loadInquiries()" class="filter-select">
+                <option value="">전체</option>
+                <option value="pending">대기중</option>
+                <option value="replied">답변완료</option>
+                <option value="closed">종료</option>
+            </select>
+            <button @click="loadInquiries()" class="btn-refresh">새로고침</button>
+        </div>
+
+        <div class="inquiries-list" x-show="!loading && inquiries.length > 0">
+            <template x-for="inquiry in inquiries" :key="inquiry._id">
+                <div class="inquiry-card" :class="'status-' + inquiry.status">
+                    <div class="inquiry-header">
+                        <div class="inquiry-meta">
+                            <span class="inquiry-id" x-text="'#' + inquiry._id.slice(-8)"></span>
+                            <span class="inquiry-category" x-text="getCategoryName(inquiry.category)"></span>
+                            <span class="inquiry-status" :class="'status-' + inquiry.status" x-text="getStatusName(inquiry.status)"></span>
+                        </div>
+                        <div class="inquiry-date" x-text="formatDate(inquiry.created_at)"></div>
+                    </div>
+                    <div class="inquiry-email" x-text="inquiry.email"></div>
+                    <h3 class="inquiry-subject" x-text="inquiry.subject"></h3>
+                    <div class="inquiry-message" x-text="inquiry.message"></div>
+                    <div class="inquiry-actions">
+                        <template x-if="inquiry.status === 'pending'">
+                            <button @click="updateStatus(inquiry._id, 'replied')" class="btn-action btn-replied">답변완료</button>
+                        </template>
+                        <template x-if="inquiry.status !== 'closed'">
+                            <button @click="updateStatus(inquiry._id, 'closed')" class="btn-action btn-closed">종료</button>
+                        </template>
+                        <template x-if="inquiry.status === 'closed'">
+                            <button @click="updateStatus(inquiry._id, 'pending')" class="btn-action btn-reopen">다시 열기</button>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <div class="empty-state" x-show="!loading && inquiries.length === 0">
+            <p>문의사항이 없습니다.</p>
+        </div>
+
+        <div class="loading-state" x-show="loading">
+            <p>로딩 중...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function adminData() {
+    return {
+        inquiries: [],
+        loading: false,
+        filterStatus: '',
+        totalCount: 0,
+        pendingCount: 0,
+        repliedCount: 0,
+        closedCount: 0,
+        
+        async init() {
+            // 통계와 문의사항을 동시에 로드 (병렬 처리)
+            try {
+                await Promise.all([
+                    this.loadStats(),
+                    this.loadInquiries()
+                ]);
+            } catch (error) {
+                console.error('초기화 오류:', error);
+                // 인증 오류 확인
+                const statsResponse = await fetch('/api/admin/inquiries/stats', {
+                    credentials: 'include'
+                });
+                if (statsResponse.status === 401) {
+                    window.location.href = '/admin/login?redirect=' + encodeURIComponent(window.location.pathname);
+                }
+            }
+        },
+        
+        async loadStats() {
+            try {
+                const response = await fetch('/api/admin/inquiries/stats', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    // 데이터가 있을 때만 업데이트 (0이어도 유효한 값)
+                    this.totalCount = data.total ?? 0;
+                    this.pendingCount = data.pending ?? 0;
+                    this.repliedCount = data.replied ?? 0;
+                    this.closedCount = data.closed ?? 0;
+                } else if (response.status === 401) {
+                    window.location.href = '/admin/login?redirect=' + encodeURIComponent(window.location.pathname);
+                    throw new Error('인증 필요');
+                } else {
+                    console.error('통계 로드 실패:', response.status);
+                }
+            } catch (error) {
+                console.error('Stats load error:', error);
+                // 에러 발생 시에도 기본값 유지 (0으로 표시)
+            }
+        },
+        
+        async loadInquiries() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams();
+                if (this.filterStatus) {
+                    params.append('status', this.filterStatus);
+                }
+                
+                const response = await fetch('/api/admin/inquiries?' + params.toString(), {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    // API 응답 형식: {"success": True, "inquiries": [...]}
+                    if (data.success !== undefined && Array.isArray(data.inquiries)) {
+                        this.inquiries = data.inquiries;
+                    } else if (Array.isArray(data.inquiries)) {
+                        // success 필드가 없어도 inquiries 배열이 있으면 사용
+                        this.inquiries = data.inquiries;
+                    } else if (Array.isArray(data)) {
+                        // 직접 배열로 반환된 경우
+                        this.inquiries = data;
+                    } else {
+                        console.warn('예상치 못한 데이터 형식:', data);
+                        this.inquiries = [];
+                    }
+                } else if (response.status === 401) {
+                    window.location.href = '/admin/login?redirect=' + encodeURIComponent(window.location.pathname);
+                    throw new Error('인증 필요');
+                } else {
+                    console.error('문의사항 로드 실패:', response.status);
+                    // 에러 발생 시에도 빈 배열로 설정하여 UI가 깨지지 않도록
+                    this.inquiries = [];
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                // 네트워크 오류 등으로 실패한 경우 빈 배열로 설정
+                this.inquiries = [];
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async updateStatus(inquiryId, status) {
+            if (!confirm('상태를 변경하시겠습니까?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/inquiries/${inquiryId}/status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        status: status
+                    })
+                });
+                
+                if (response.ok) {
+                    // 상태 변경 후 통계와 목록을 동시에 업데이트
+                    await Promise.all([
+                        this.loadStats(),
+                        this.loadInquiries()
+                    ]);
+                } else if (response.status === 401) {
+                    window.location.href = '/admin/login?redirect=' + encodeURIComponent(window.location.pathname);
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    alert(errorData.message || '상태 변경에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('상태 변경에 실패했습니다.');
+            }
+        },
+        
+        async logout() {
+            if (!confirm('로그아웃하시겠습니까?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/admin/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    window.location.href = '/admin/login';
+                } else {
+                    alert('로그아웃에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('로그아웃에 실패했습니다.');
+            }
+        },
+        
+        getCategoryName(category) {
+            const categories = {
+                'general': '일반 문의',
+                'bug': '버그 신고',
+                'feature': '기능 제안',
+                'feedback': '피드백',
+                'other': '기타'
+            };
+            return categories[category] || category;
+        },
+        
+        getStatusName(status) {
+            const statuses = {
+                'pending': '대기중',
+                'replied': '답변완료',
+                'closed': '종료'
+            };
+            return statuses[status] || status;
+        },
+        
+        formatDate(dateString) {
+            // UTC 시간을 한국 시간(KST, UTC+9)으로 변환
+            const date = new Date(dateString);
+            // 한국 시간대 옵션 사용
+            return date.toLocaleString('ko-KR', {
+                timeZone: 'Asia/Seoul',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true  // 오전/오후 표시
+            });
+        }
+    };
+}
+</script>
+{% endblock %}
