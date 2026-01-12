@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}문의사항 통계{% endblock %}
+
+{% block meta_description %}문의사항 통계를 확인하세요.{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/admin.css">
+{% endblock %}
+
+{% block content %}
+<div class="admin-page" x-data="statsData()" x-init="init()">
+    {% include "admin/components/sidebar.html" %}
+    
+    <div class="admin-wrapper">
+        <div class="admin-container">
+            <div class="admin-header">
+                <div class="admin-header-top">
+                    <h1 class="admin-title">문의사항 통계</h1>
+                    <button @click="loadDetailedStats()" class="btn btn-primary btn-sm">새로고침</button>
+                </div>
+            </div>
+
+        <!-- 로딩 상태 -->
+        <div x-show="loading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>통계를 불러오는 중...</p>
+        </div>
+
+        <!-- 통계 섹션 -->
+        <div x-show="!loading" x-cloak style="display: none;">
+            <!-- 요약 통계 -->
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-box-label">전체 문의사항</div>
+                    <div class="stat-box-value" x-text="detailedStats.total || 0">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-label">최근 7일</div>
+                    <div class="stat-box-value" x-text="detailedStats.recent_7_days || 0">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-label">최근 30일</div>
+                    <div class="stat-box-value" x-text="detailedStats.recent_30_days || 0">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-label">평균 응답 시간</div>
+                    <div class="stat-box-value" x-text="formatResponseTime(detailedStats.avg_response_time_hours)">-</div>
+                </div>
+            </div>
+
+            <!-- 상태별 분포 -->
+            <div class="chart-container">
+                <h3 class="chart-title">상태별 분포</h3>
+                <div class="stats-grid">
+                    <template x-for="(count, status) in (detailedStats.by_status || {})" :key="status">
+                        <div class="stat-box">
+                            <div class="stat-box-label" x-text="getStatusName(status)"></div>
+                            <div class="stat-box-value" x-text="count"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 카테고리별 분포 -->
+            <div class="chart-container">
+                <h3 class="chart-title">카테고리별 분포</h3>
+                <div class="stats-grid">
+                    <template x-for="(count, category) in (detailedStats.by_category || {})" :key="category">
+                        <div class="stat-box">
+                            <div class="stat-box-label" x-text="category"></div>
+                            <div class="stat-box-value" x-text="count"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 일별 트렌드 (최근 7일) -->
+            <div class="chart-container">
+                <h3 class="chart-title">최근 7일 일별 트렌드</h3>
+                <div class="chart-bar-container">
+                    <template x-for="day in (detailedStats.daily_counts || [])" :key="day.date">
+                        <div class="chart-bar-item">
+                            <div class="chart-bar-wrapper">
+                                <div class="chart-bar" 
+                                     :style="'height: ' + (day.count > 0 ? Math.max((day.count / Math.max(...(detailedStats.daily_counts || [{count: 1}]).map(d => d.count))) * 100, 10) : 0) + '%;'">
+                                </div>
+                            </div>
+                            <div class="chart-bar-label" x-text="formatDateShort(day.date)"></div>
+                            <div class="chart-bar-value" x-text="day.count"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 시간대별 분포 -->
+            <div class="chart-container">
+                <h3 class="chart-title">시간대별 문의 분포</h3>
+                <div class="chart-hourly-container">
+                    <template x-for="hour in Array.from({length: 24}, (_, i) => i)" :key="hour">
+                        <div class="chart-hourly-item">
+                            <div class="chart-hourly-label" x-text="hour"></div>
+                            <div class="chart-hourly-bar-wrapper">
+                                <div class="chart-hourly-bar" 
+                                     :style="'height: ' + (detailedStats.hourly_distribution && detailedStats.hourly_distribution[hour] ? Math.max((detailedStats.hourly_distribution[hour] / Math.max(...Object.values(detailedStats.hourly_distribution || {}).concat([1]))) * 100, 5) : 0) + '%;'">
+                                </div>
+                            </div>
+                            <div class="chart-hourly-value" 
+                                 x-text="detailedStats.hourly_distribution && detailedStats.hourly_distribution[hour] ? detailedStats.hourly_distribution[hour] : 0">0</div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function statsData() {
+    return {
+        loading: true,
+        detailedStats: {},
+        sidebarOpen: false,
+        currentPath: window.location.pathname,
+        showChangePasswordModal: false,
+        
+        async init() {
+            await this.loadDetailedStats();
+        },
+        
+        async loadDetailedStats() {
+            this.loading = true;
+            try {
+                const response = await fetch('/api/admin/inquiries/detailed-stats', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.stats) {
+                        this.detailedStats = data.stats;
+                    }
+                } else if (response.status === 401) {
+                    window.location.href = '/admin/login?redirect=' + encodeURIComponent(window.location.pathname);
+                } else {
+                    console.error('상세 통계 로드 실패:', response.status);
+                }
+            } catch (error) {
+                console.error('Detailed stats load error:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        getStatusName(status) {
+            const statusMap = {
+                'pending': '대기중',
+                'replied': '답변완료',
+                'closed': '종료'
+            };
+            return statusMap[status] || status;
+        },
+        
+        formatResponseTime(hours) {
+            if (!hours || hours === 0) return '-';
+            if (hours < 1) {
+                return Math.round(hours * 60) + '분';
+            } else if (hours < 24) {
+                return Math.round(hours * 10) / 10 + '시간';
+            } else {
+                const days = Math.floor(hours / 24);
+                const remainingHours = Math.round((hours % 24) * 10) / 10;
+                return days + '일 ' + (remainingHours > 0 ? remainingHours + '시간' : '');
+            }
+        },
+        
+        formatDateShort(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            return month + '/' + day;
+        },
+        
+        logout() {
+            if (!confirm('로그아웃하시겠습니까?')) {
+                return;
+            }
+            fetch('/admin/logout', {
+                method: 'POST',
+                credentials: 'include'
+            }).then(() => {
+                window.location.href = '/admin/login';
+            });
+        },
+        
+        handleLogout() {
+            this.logout();
+        },
+        
+        async changePassword() {
+            // 비밀번호 변경 로직은 admin_inquiries.html과 동일하게 구현 필요
+            alert('비밀번호 변경 기능은 문의사항 관리 페이지에서 사용하세요.');
+        }
+    }
+}
+</script>
+{% endblock %}

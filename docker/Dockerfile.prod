@@ -22,6 +22,17 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # 애플리케이션 코드 복사
 COPY . .
 
+# 정적 파일 디렉토리 확인 및 권한 설정 (디버깅용)
+RUN echo "=== 정적 파일 확인 ===" && \
+    ls -la /app/static 2>/dev/null || echo "Warning: static directory not found" && \
+    echo "=== CSS 파일 ===" && \
+    ls -la /app/static/css 2>/dev/null || echo "Warning: static/css directory not found" && \
+    echo "=== JS 파일 ===" && \
+    ls -la /app/static/js 2>/dev/null || echo "Warning: static/js directory not found" && \
+    echo "=== 정적 파일 권한 설정 ===" && \
+    chmod -R 644 /app/static/css/*.css 2>/dev/null || true && \
+    chmod -R 644 /app/static/js/*.js 2>/dev/null || true
+
 # 권한 설정
 RUN chown -R appuser:appuser /app
 USER appuser

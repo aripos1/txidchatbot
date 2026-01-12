@@ -29,6 +29,7 @@ from collections import OrderedDict
 import logging
 import sys
 import re
+import bcrypt
 
 load_dotenv()
 
@@ -186,8 +187,53 @@ templates = Jinja2Templates(directory="templates")
 
 # Static 파일 디렉토리 마운트
 import os
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+from pathlib import Path
+
+# 정적 파일 디렉토리 경로 확인 (절대 경로 사용)
+static_dir = Path(__file__).parent / "static"
+static_dir_abs = static_dir.resolve()
+
+if static_dir_abs.exists():
+    try:
+        # StaticFiles 설정: html=False (디렉토리 인덱싱 비활성화), check_dir=True (디렉토리 확인)
+        app.mount("/static", StaticFiles(directory=str(static_dir_abs), html=False, check_dir=True), name="static")
+        print("="*60)
+        print(f"✅ 정적 파일 디렉토리 마운트 성공: {static_dir_abs}")
+        # 정적 파일 목록 확인 (디버깅용)
+        css_files = list(static_dir_abs.glob("css/*.css"))
+        js_files = list(static_dir_abs.glob("js/*.js"))
+        print(f"   - CSS 파일: {len(css_files)}개")
+        for css_file in css_files:
+            print(f"     * {css_file.name}")
+        print(f"   - JS 파일: {len(js_files)}개")
+        for js_file in js_files:
+            print(f"     * {js_file.name}")
+        print("="*60)
+        logger.info(f"✅ 정적 파일 디렉토리 마운트 성공: {static_dir_abs}")
+        logger.info(f"   - CSS 파일: {len(css_files)}개, JS 파일: {len(js_files)}개")
+    except Exception as e:
+        print(f"❌ 정적 파일 디렉토리 마운트 실패: {e}")
+        logger.error(f"❌ 정적 파일 디렉토리 마운트 실패: {e}", exc_info=True)
+else:
+    print("="*60)
+    print(f"❌ 정적 파일 디렉토리를 찾을 수 없습니다: {static_dir_abs}")
+    print(f"   - 현재 작업 디렉토리: {os.getcwd()}")
+    print(f"   - main.py 위치: {Path(__file__).parent}")
+    print(f"   - 상대 경로 시도: {Path('static').resolve()}")
+    print("="*60)
+    logger.error(f"❌ 정적 파일 디렉토리를 찾을 수 없습니다: {static_dir_abs}")
+    logger.info(f"   - 현재 작업 디렉토리: {os.getcwd()}")
+    logger.info(f"   - main.py 위치: {Path(__file__).parent}")
+    # 대체 경로 시도
+    alt_static = Path("static").resolve()
+    if alt_static.exists():
+        try:
+            app.mount("/static", StaticFiles(directory=str(alt_static)), name="static")
+            print(f"✅ 대체 경로로 정적 파일 마운트 성공: {alt_static}")
+            logger.info(f"✅ 대체 경로로 정적 파일 마운트 성공: {alt_static}")
+        except Exception as e:
+            print(f"❌ 대체 경로 마운트도 실패: {e}")
+            logger.error(f"❌ 대체 경로 마운트도 실패: {e}")
 
 CHAIN_CONFIGS = get_chain_configs()
 
@@ -245,10 +291,13 @@ async def startup_event():
             try:
                 # 타임아웃 설정 (5초)
                 connected = await asyncio.wait_for(mongodb_client.connect(), timeout=5.0)
-                if not connected:
-                    logger.warning("MongoDB 연결 실패 - 챗봇 기능이 제한될 수 있습니다.")
-                else:
+                if connected:
+                    # MongoDB 연결 성공 시 admin 비밀번호 초기화 (없을 경우에만)
+                    default_password = os.getenv("ADMIN_PASSWORD", "admin123")
+                    await mongodb_client.initialize_admin_password(default_password)
                     logger.info("✅ MongoDB 연결 성공!")
+                else:
+                    logger.warning("MongoDB 연결 실패 - 챗봇 기능이 제한될 수 있습니다.")
             except asyncio.TimeoutError:
                 logger.warning("MongoDB 연결 타임아웃 (5초) - 챗봇 기능이 제한될 수 있습니다.")
             except asyncio.CancelledError:
@@ -883,7 +932,7 @@ async def admin_login(request: Request):
         data = await request.json()
         password = data.get("password", "")
         
-        if verify_admin_password(password):
+        if await verify_admin_password(password):
             request.session["admin_authenticated"] = True
             redirect_url = data.get("redirect_url", "/admin/inquiries")
             logger.info(f"관리자 로그인 성공: {request.client.host if request.client else 'unknown'}")
@@ -925,6 +974,26 @@ async def admin_inquiries_page(request: Request):
         return redirect
     
     return templates.TemplateResponse("admin/admin_inquiries.html", {"request": request})
+
+@app.get("/admin/inquiries/stats", response_class=HTMLResponse)
+async def admin_inquiries_stats_page(request: Request):
+    """문의사항 통계 페이지"""
+    # 인증 확인
+    redirect = await require_admin_auth(request)
+    if redirect:
+        return redirect
+    
+    return templates.TemplateResponse("admin/admin_stats.html", {"request": request})
+
+@app.get("/admin/chat/stats", response_class=HTMLResponse)
+async def admin_chat_stats_page(request: Request):
+    """채팅 통계 페이지"""
+    # 인증 확인
+    redirect = await require_admin_auth(request)
+    if redirect:
+        return redirect
+    
+    return templates.TemplateResponse("admin/admin_chat_stats.html", {"request": request})
 
 @app.post("/api/contact")
 async def submit_contact(request: Request):
@@ -999,10 +1068,30 @@ async def submit_contact(request: Request):
             content={"success": False, "message": "서버 오류가 발생했습니다. 나중에 다시 시도해주세요."}
         )
 
-def verify_admin_password(password: str) -> bool:
-    """관리자 비밀번호 확인"""
-    admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
-    return password == admin_password
+async def verify_admin_password(password: str) -> bool:
+    """관리자 비밀번호 확인 (MongoDB에서 조회)"""
+    try:
+        # MongoDB에서 비밀번호 해시 조회
+        password_hash = await mongodb_client.get_admin_password_hash()
+        
+        if password_hash:
+            # 해시된 비밀번호와 비교
+            return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+        else:
+            # MongoDB에 비밀번호가 없으면 환경 변수 또는 기본값 사용
+            admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
+            if password == admin_password:
+                # MongoDB에 초기 비밀번호 저장
+                hash_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                await mongodb_client.set_admin_password_hash(hash_pw)
+                logger.info("관리자 비밀번호가 MongoDB에 초기화되었습니다.")
+                return True
+            return False
+    except Exception as e:
+        logger.error(f"관리자 비밀번호 확인 오류: {e}")
+        # 오류 발생 시 환경 변수로 폴백
+        admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
+        return password == admin_password
 
 def is_admin_authenticated(request: Request) -> bool:
     """관리자 인증 여부 확인"""
@@ -1045,7 +1134,7 @@ async def get_inquiries(request: Request):
 
 @app.get("/api/admin/inquiries/stats")
 async def get_inquiry_stats(request: Request):
-    """문의사항 통계 API"""
+    """문의사항 통계 API (기본 통계)"""
     try:
         # 인증 확인
         if not is_admin_authenticated(request):
@@ -1071,6 +1160,154 @@ async def get_inquiry_stats(request: Request):
         )
     except Exception as e:
         logger.error(f"문의사항 통계 API 오류: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "서버 오류가 발생했습니다."}
+        )
+
+@app.get("/api/admin/inquiries/detailed-stats")
+async def get_detailed_inquiry_stats(request: Request):
+    """문의사항 상세 통계 API"""
+    try:
+        # 인증 확인
+        if not is_admin_authenticated(request):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "인증이 필요합니다."}
+            )
+        
+        # 상세 통계 조회
+        stats = await mongodb_client.get_inquiry_statistics()
+        
+        return JSONResponse(
+            content={
+                "success": True,
+                "stats": stats
+            }
+        )
+    except Exception as e:
+        logger.error(f"문의사항 상세 통계 API 오류: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "서버 오류가 발생했습니다."}
+        )
+
+@app.get("/api/admin/chat/stats")
+async def get_chat_stats(request: Request):
+    """채팅 상세 통계 API"""
+    try:
+        # 인증 확인
+        if not is_admin_authenticated(request):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "인증이 필요합니다."}
+            )
+        
+        # 채팅 통계 조회
+        stats = await mongodb_client.get_chat_statistics()
+        
+        return JSONResponse(
+            content={
+                "success": True,
+                "stats": stats
+            }
+        )
+    except Exception as e:
+        logger.error(f"채팅 상세 통계 API 오류: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "서버 오류가 발생했습니다."}
+        )
+
+@app.get("/api/admin/chat/content-stats")
+async def get_chat_content_stats(request: Request):
+    """채팅 내용 분석 통계 API (AI 분석 포함)"""
+    try:
+        # 인증 확인
+        if not is_admin_authenticated(request):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "인증이 필요합니다."}
+            )
+        
+        # AI 분석 사용 여부 (기본값: True)
+        use_ai = request.query_params.get("use_ai", "true").lower() == "true"
+        
+        # 채팅 내용 통계 조회
+        stats = await mongodb_client.get_chat_content_statistics(use_ai_analysis=use_ai)
+        
+        return JSONResponse(
+            content={
+                "success": True,
+                "stats": stats,
+                "ai_analysis_enabled": use_ai
+            }
+        )
+    except Exception as e:
+        logger.error(f"채팅 내용 통계 API 오류: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": "서버 오류가 발생했습니다."}
+        )
+
+@app.post("/api/admin/change-password")
+async def change_admin_password(request: Request):
+    """관리자 비밀번호 변경 API"""
+    try:
+        if not is_admin_authenticated(request):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "인증이 필요합니다."}
+            )
+        
+        data = await request.json()
+        current_password = data.get("current_password", "")
+        new_password = data.get("new_password", "")
+        confirm_password = data.get("confirm_password", "")
+        
+        # 입력 검증
+        if not current_password or not new_password or not confirm_password:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "모든 필드를 입력해주세요."}
+            )
+        
+        if new_password != confirm_password:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "새 비밀번호가 일치하지 않습니다."}
+            )
+        
+        if len(new_password) < 6:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "비밀번호는 최소 6자 이상이어야 합니다."}
+            )
+        
+        # 현재 비밀번호 확인
+        if not await verify_admin_password(current_password):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "현재 비밀번호가 일치하지 않습니다."}
+            )
+        
+        # 새 비밀번호 해시화 및 저장
+        new_password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        success = await mongodb_client.set_admin_password_hash(new_password_hash)
+        
+        if success:
+            logger.info(f"관리자 비밀번호가 변경되었습니다: {request.client.host if request.client else 'unknown'}")
+            return JSONResponse(
+                content={"success": True, "message": "비밀번호가 성공적으로 변경되었습니다."}
+            )
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "message": "비밀번호 변경에 실패했습니다."}
+            )
+    except Exception as e:
+        logger.error(f"비밀번호 변경 오류: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": "서버 오류가 발생했습니다."}
@@ -1114,6 +1351,65 @@ async def update_inquiry_status(inquiry_id: str, request: Request):
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": "서버 오류가 발생했습니다."}
+        )
+
+@app.get("/api/debug/static-files")
+async def debug_static_files():
+    """정적 파일 목록 확인 (디버깅용)"""
+    try:
+        static_dir = Path(__file__).parent / "static"
+        static_dir_abs = static_dir.resolve()
+        
+        result = {
+            "static_dir": str(static_dir_abs),
+            "exists": static_dir_abs.exists(),
+            "files": {}
+        }
+        
+        if static_dir_abs.exists():
+            # CSS 파일 목록
+            css_files = list(static_dir_abs.glob("css/*.css"))
+            result["files"]["css"] = [
+                {
+                    "name": f.name,
+                    "path": str(f.relative_to(static_dir_abs)),
+                    "exists": f.exists(),
+                    "size": f.stat().st_size if f.exists() else 0
+                }
+                for f in css_files
+            ]
+            
+            # JS 파일 목록
+            js_files = list(static_dir_abs.glob("js/*.js"))
+            result["files"]["js"] = [
+                {
+                    "name": f.name,
+                    "path": str(f.relative_to(static_dir_abs)),
+                    "exists": f.exists(),
+                    "size": f.stat().st_size if f.exists() else 0
+                }
+                for f in js_files
+            ]
+            
+            # 기타 파일
+            other_files = []
+            for ext in ["*.txt", "*.xml", "*.json"]:
+                other_files.extend(static_dir_abs.glob(ext))
+            result["files"]["other"] = [
+                {
+                    "name": f.name,
+                    "path": str(f.relative_to(static_dir_abs)),
+                    "exists": f.exists(),
+                    "size": f.stat().st_size if f.exists() else 0
+                }
+                for f in other_files
+            ]
+        
+        return JSONResponse(content=result)
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "traceback": str(e.__traceback__)}
         )
 
 @app.get("/robots.txt")

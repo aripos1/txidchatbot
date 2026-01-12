@@ -20,14 +20,14 @@ itsdangerous>=2.1.2  # 세션 암호화용 (SessionMiddleware)
 langgraph>=1.0.0
 langchain>=1.0.0
 langchain-openai>=1.0.0
-langchain-community>=0.4.1  # Note: 1.0.0 not available yet, using latest 0.4.1
+langchain-community>=0.4.1  # 벡터 스토어 및 커뮤니티 통합
 langchain-core>=1.0.0
-langgraph-cli>=0.4.11  # Note: 1.0.0 not available yet, using latest 0.4.11
-langsmith>=0.1.0
+langgraph-cli>=0.4.11  # LangGraph CLI 도구
+langsmith>=0.1.0  # LangSmith 추적 및 모니터링
 
 # --- MongoDB ---
-pymongo>=4.9,<4.10
-motor==3.6.0
+pymongo>=4.9,<4.10  # 동기 MongoDB 드라이버 (pymongo.errors 등)
+motor==3.6.0  # 비동기 MongoDB 드라이버 (MongoDB Atlas 연결)
 
 # --- OpenAI ---
 openai>=1.54.0
@@ -41,3 +41,6 @@ duckduckgo-search>=5.1.0  # 구버전 호환성 (fallback)
 
 # --- Data Validation ---
 pydantic>=2.0.0
+
+# --- Security ---
+bcrypt>=4.0.1  # 비밀번호 해싱

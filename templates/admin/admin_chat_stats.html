@@ -1,0 +1,439 @@
+{% extends "base.html" %}
+
+{% block title %}채팅 통계{% endblock %}
+
+{% block meta_description %}채팅 통계를 확인하세요.{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/admin.css">
+{% endblock %}
+
+{% block content %}
+<div class="admin-page" x-data="chatStatsData()" x-init="init()">
+    {% include "admin/components/sidebar.html" %}
+    
+    <div class="admin-wrapper">
+        <div class="admin-container">
+            <div class="admin-header">
+                <div class="admin-header-top">
+                    <h1 class="admin-title">채팅 통계</h1>
+                    <button @click="loadChatStats()" class="btn btn-primary btn-sm">새로고침</button>
+                </div>
+            
+            <!-- 탭 메뉴 -->
+            <div class="admin-tabs">
+                <button @click="activeTab = 'basic'" 
+                        class="admin-tab"
+                        :class="{'active': activeTab === 'basic'}">
+                    기본 통계
+                </button>
+                <button @click="activeTab = 'content'" 
+                        class="admin-tab"
+                        :class="{'active': activeTab === 'content'}">
+                    내용 분석
+                </button>
+            </div>
+        </div>
+
+        <!-- 로딩 상태 -->
+        <div x-show="loading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>통계를 불러오는 중...</p>
+        </div>
+
+        <!-- 기본 통계 섹션 -->
+        <div x-show="!loading && activeTab === 'basic'" x-cloak style="display: none;">
+            <!-- 요약 통계 -->
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-box-label">전체 메시지</div>
+                    <div class="stat-box-value" x-text="chatStats.total_messages || 0">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-label">전체 세션</div>
+                    <div class="stat-box-value" x-text="chatStats.total_sessions || 0">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-label">최근 7일</div>
+                    <div class="stat-box-value" x-text="chatStats.recent_7_days || 0">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-label">최근 30일</div>
+                    <div class="stat-box-value" x-text="chatStats.recent_30_days || 0">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-label">세션당 평균 메시지</div>
+                    <div class="stat-box-value" x-text="chatStats.avg_messages_per_session || 0">0</div>
+                </div>
+            </div>
+
+            <!-- 메시지 유형별 분포 -->
+            <div class="chart-container">
+                <h3 class="chart-title">메시지 유형별 분포</h3>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-box-label">사용자 메시지</div>
+                        <div class="stat-box-value" x-text="chatStats.user_messages || 0">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-box-label">AI 응답</div>
+                        <div class="stat-box-value" x-text="chatStats.assistant_messages || 0">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 일별 메시지 트렌드 (최근 7일) -->
+            <div class="chart-container">
+                <h3 class="chart-title">최근 7일 일별 메시지 트렌드</h3>
+                <div class="chart-bar-container">
+                    <template x-for="day in (chatStats.daily_counts || [])" :key="day.date">
+                        <div class="chart-bar-item">
+                            <div class="chart-bar-wrapper">
+                                <div class="chart-bar" 
+                                     :style="'height: ' + (day.count > 0 ? Math.max((day.count / Math.max(...(chatStats.daily_counts || [{count: 1}]).map(d => d.count))) * 100, 10) : 0) + '%;'">
+                                </div>
+                            </div>
+                            <div class="chart-bar-label" x-text="formatDateShort(day.date)"></div>
+                            <div class="chart-bar-value" x-text="day.count"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 일별 세션 트렌드 (최근 7일) -->
+            <div class="chart-container">
+                <h3 class="chart-title">최근 7일 일별 세션 트렌드</h3>
+                <div class="chart-bar-container">
+                    <template x-for="day in (chatStats.sessions_by_day || [])" :key="day.date">
+                        <div class="chart-bar-item">
+                            <div class="chart-bar-wrapper">
+                                <div class="chart-bar chart-bar-success" 
+                                     :style="'height: ' + (day.count > 0 ? Math.max((day.count / Math.max(...(chatStats.sessions_by_day || [{count: 1}]).map(d => d.count))) * 100, 10) : 0) + '%;'">
+                                </div>
+                            </div>
+                            <div class="chart-bar-label" x-text="formatDateShort(day.date)"></div>
+                            <div class="chart-bar-value chart-bar-value-success" x-text="day.count"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 시간대별 분포 -->
+            <div class="chart-container">
+                <h3 class="chart-title">시간대별 채팅 분포</h3>
+                <div class="chart-hourly-container">
+                    <template x-for="hour in Array.from({length: 24}, (_, i) => i)" :key="hour">
+                        <div class="chart-hourly-item">
+                            <div class="chart-hourly-label" x-text="hour"></div>
+                            <div class="chart-hourly-bar-wrapper">
+                                <div class="chart-hourly-bar" 
+                                     :style="'height: ' + (chatStats.hourly_distribution && chatStats.hourly_distribution[hour] ? Math.max((chatStats.hourly_distribution[hour] / Math.max(...Object.values(chatStats.hourly_distribution || {}).concat([1]))) * 100, 5) : 0) + '%;'">
+                                </div>
+                            </div>
+                            <div class="chart-hourly-value" 
+                                 x-text="chatStats.hourly_distribution && chatStats.hourly_distribution[hour] ? chatStats.hourly_distribution[hour] : 0">0</div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- 내용 분석 통계 섹션 -->
+        <div x-show="!loading && activeTab === 'content'" x-cloak style="display: none;">
+            <!-- 요약 통계 -->
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-box-label">분석된 메시지</div>
+                    <div class="stat-box-value" x-text="contentStats.total_user_messages || 0">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-box-label">평균 메시지 길이</div>
+                    <div class="stat-box-value" x-text="(contentStats.avg_message_length || 0) + '자'">0자</div>
+                </div>
+            </div>
+
+            <!-- 상위 키워드 -->
+            <div class="chart-container">
+                <h3 class="chart-title">상위 키워드 (Top 20)</h3>
+                <div class="keyword-tags">
+                    <template x-for="(keyword, index) in (contentStats.top_keywords || [])" :key="index">
+                        <div class="keyword-tag">
+                            <span class="keyword-rank" x-text="'#' + (index + 1)"></span>
+                            <span class="keyword-word" x-text="keyword.word"></span>
+                            <span class="keyword-count" x-text="'(' + keyword.count + ')'"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 질문 유형별 분포 -->
+            <div class="chart-container">
+                <h3 class="chart-title">질문 유형별 분포</h3>
+                <div class="stats-grid">
+                    <template x-for="(count, type) in (contentStats.question_types || {})" :key="type">
+                        <div class="stat-box">
+                            <div class="stat-box-label" x-text="type"></div>
+                            <div class="stat-box-value" x-text="count"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 블록체인 네트워크 언급 빈도 -->
+            <div class="chart-container">
+                <h3 class="chart-title">블록체인 네트워크 언급 빈도</h3>
+                <div class="stats-grid">
+                    <template x-for="(count, network) in (contentStats.blockchain_networks || {})" :key="network">
+                        <div class="stat-box">
+                            <div class="stat-box-label" x-text="network"></div>
+                            <div class="stat-box-value" x-text="count"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 주제별 분포 -->
+            <div class="chart-container">
+                <h3 class="chart-title">주제별 분포</h3>
+                <div class="stats-grid">
+                    <template x-for="(count, topic) in (contentStats.topics || {})" :key="topic">
+                        <div class="stat-box">
+                            <div class="stat-box-label" x-text="topic"></div>
+                            <div class="stat-box-value" x-text="count"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- 메시지 길이 분포 -->
+            <div class="chart-container">
+                <h3 class="chart-title">메시지 길이 분포</h3>
+                <div class="chart-bar-container">
+                    <template x-for="item in getSortedLengthDistribution()" :key="item.length">
+                        <div class="chart-bar-item">
+                            <div class="chart-bar-wrapper">
+                                <div class="chart-bar chart-bar-purple" 
+                                     :style="'height: ' + (item.count > 0 ? Math.max((item.count / Math.max(...Object.values(contentStats.message_length_distribution || {}).concat([1]))) * 100, 10) : 0) + '%;'">
+                                </div>
+                            </div>
+                            <div class="chart-bar-label" x-text="item.length + '자'"></div>
+                            <div class="chart-bar-value chart-bar-value-purple" x-text="item.count"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- AI 분석 결과 -->
+            <div class="ai-analysis-section">
+                <h3 class="ai-analysis-title">🤖 AI 심층 분석</h3>
+                
+                <!-- AI 분석 로딩 또는 데이터 없음 -->
+                <template x-if="!contentStats.ai_sentiment && !contentStats.ai_insights">
+                    <div class="ai-analysis-box text-center">
+                        <template x-if="contentStats.ai_error">
+                            <div>
+                                <p class="mb-md" style="color: #fbbf24;">⚠️ AI 분석 오류</p>
+                                <p class="mb-sm" style="font-size: 0.875rem;" x-text="contentStats.ai_error"></p>
+                                <p style="font-size: 0.75rem; color: rgba(255,255,255,0.6);">서버 로그를 확인하거나 나중에 다시 시도해주세요.</p>
+                            </div>
+                        </template>
+                        <template x-if="!contentStats.ai_error">
+                            <div>
+                                <p class="mb-sm">AI 분석 결과가 아직 없습니다.</p>
+                                <p style="font-size: 0.875rem;">메시지 데이터가 충분하면 자동으로 분석됩니다.</p>
+                                <p style="font-size: 0.75rem; color: rgba(255,255,255,0.6); margin-top: var(--admin-spacing-sm);">
+                                    현재 메시지 수: <span x-text="contentStats.total_user_messages || 0"></span>개
+                                </p>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+                    
+                    <!-- 감정 분석 -->
+                    <template x-if="contentStats.ai_sentiment">
+                        <div class="ai-analysis-box">
+                            <h4 class="ai-analysis-box-title">감정 분석</h4>
+                            <div class="sentiment-grid">
+                                <div class="sentiment-item">
+                                    <div class="sentiment-label">긍정</div>
+                                    <div class="sentiment-value" x-text="contentStats.ai_sentiment.positive || 0"></div>
+                                </div>
+                                <div class="sentiment-item">
+                                    <div class="sentiment-label">중립</div>
+                                    <div class="sentiment-value" x-text="contentStats.ai_sentiment.neutral || 0"></div>
+                                </div>
+                                <div class="sentiment-item">
+                                    <div class="sentiment-label">부정</div>
+                                    <div class="sentiment-value" x-text="contentStats.ai_sentiment.negative || 0"></div>
+                                </div>
+                            </div>
+                            <div class="sentiment-overall">
+                                전체 감정: <strong x-text="contentStats.ai_sentiment.overall_sentiment || '-'"></strong>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- 의도 분류 -->
+                    <template x-if="contentStats.ai_intent_categories">
+                        <div class="ai-analysis-box">
+                            <h4 class="ai-analysis-box-title">의도 분류</h4>
+                            <div class="intent-grid">
+                                <template x-for="(count, intent) in contentStats.ai_intent_categories" :key="intent">
+                                    <div class="intent-item">
+                                        <div class="intent-label" x-text="getIntentName(intent)"></div>
+                                        <div class="intent-value" x-text="count"></div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- 주요 인사이트 -->
+                    <template x-if="contentStats.ai_insights && contentStats.ai_insights.length > 0">
+                        <div class="ai-analysis-box">
+                            <h4 class="ai-analysis-box-title">주요 인사이트</h4>
+                            <ul class="ai-insight-list">
+                                <template x-for="(insight, index) in contentStats.ai_insights" :key="index">
+                                    <li class="ai-insight-item">
+                                        <span class="ai-insight-icon">💡</span>
+                                        <span x-text="insight"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </template>
+
+                    <!-- 서비스 개선 제안 -->
+                    <template x-if="contentStats.ai_recommendations && contentStats.ai_recommendations.length > 0">
+                        <div class="ai-analysis-box">
+                            <h4 class="ai-analysis-box-title">서비스 개선 제안</h4>
+                            <ul class="ai-insight-list">
+                                <template x-for="(rec, index) in contentStats.ai_recommendations" :key="index">
+                                    <li class="ai-insight-item">
+                                        <span class="ai-insight-icon">✨</span>
+                                        <span x-text="rec"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function chatStatsData() {
+    return {
+        loading: true,
+        activeTab: 'basic',
+        chatStats: {},
+        contentStats: {},
+        sidebarOpen: false,
+        currentPath: window.location.pathname,
+        showChangePasswordModal: false,
+        
+        async init() {
+            await Promise.all([
+                this.loadChatStats(),
+                this.loadContentStats()
+            ]);
+        },
+        
+        async loadChatStats() {
+            this.loading = true;
+            try {
+                const response = await fetch('/api/admin/chat/stats', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.stats) {
+                        this.chatStats = data.stats;
+                    }
+                } else if (response.status === 401) {
+                    window.location.href = '/admin/login?redirect=' + encodeURIComponent(window.location.pathname);
+                } else {
+                    console.error('채팅 통계 로드 실패:', response.status);
+                }
+            } catch (error) {
+                console.error('Chat stats load error:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async loadContentStats() {
+            try {
+                const response = await fetch('/api/admin/chat/content-stats', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.stats) {
+                        this.contentStats = data.stats;
+                    }
+                } else if (response.status === 401) {
+                    window.location.href = '/admin/login?redirect=' + encodeURIComponent(window.location.pathname);
+                } else {
+                    console.error('채팅 내용 통계 로드 실패:', response.status);
+                }
+            } catch (error) {
+                console.error('Content stats load error:', error);
+            }
+        },
+        
+        formatDateShort(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            return month + '/' + day;
+        },
+        
+        getSortedLengthDistribution() {
+            if (!this.contentStats.message_length_distribution) return [];
+            return Object.entries(this.contentStats.message_length_distribution)
+                .map(([length, count]) => ({ length: parseInt(length), count }))
+                .sort((a, b) => a.length - b.length);
+        },
+        
+        getIntentName(intent) {
+            const intentMap = {
+                "transaction_lookup": "트랜잭션 조회",
+                "price_inquiry": "시세 조회",
+                "technical_question": "기술 질문",
+                "general_inquiry": "일반 문의",
+                "error_report": "오류 신고"
+            };
+            return intentMap[intent] || intent;
+        },
+        
+        logout() {
+            if (!confirm('로그아웃하시겠습니까?')) {
+                return;
+            }
+            fetch('/admin/logout', {
+                method: 'POST',
+                credentials: 'include'
+            }).then(() => {
+                window.location.href = '/admin/login';
+            });
+        },
+        
+        handleLogout() {
+            this.logout();
+        },
+        
+        async changePassword() {
+            // 비밀번호 변경 로직은 admin_inquiries.html과 동일하게 구현 필요
+            alert('비밀번호 변경 기능은 문의사항 관리 페이지에서 사용하세요.');
+        }
+    }
+}
+</script>
+{% endblock %}

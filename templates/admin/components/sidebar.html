@@ -1,0 +1,56 @@
+<!-- 어드민 사이드바 -->
+<aside class="admin-sidebar" :class="{'sidebar-open': sidebarOpen}">
+    <div class="sidebar-header">
+        <h2 class="sidebar-title">관리자</h2>
+        <button class="sidebar-close" @click="sidebarOpen = false" x-show="sidebarOpen">
+            ×
+        </button>
+    </div>
+    
+    <nav class="sidebar-nav">
+        <a href="/admin/inquiries" 
+           class="sidebar-link"
+           :class="{'active': currentPath === '/admin/inquiries'}">
+            <span class="sidebar-icon">📋</span>
+            <span class="sidebar-text">문의사항 관리</span>
+        </a>
+        
+        <a href="/admin/inquiries/stats" 
+           class="sidebar-link"
+           :class="{'active': currentPath === '/admin/inquiries/stats'}">
+            <span class="sidebar-icon">📊</span>
+            <span class="sidebar-text">문의사항 통계</span>
+        </a>
+        
+        <a href="/admin/chat/stats" 
+           class="sidebar-link"
+           :class="{'active': currentPath === '/admin/chat/stats'}">
+            <span class="sidebar-icon">💬</span>
+            <span class="sidebar-text">채팅 통계</span>
+        </a>
+        
+        <div class="sidebar-divider"></div>
+        
+        <button @click="showChangePasswordModal = true" class="sidebar-link sidebar-button">
+            <span class="sidebar-icon">🔒</span>
+            <span class="sidebar-text">비밀번호 변경</span>
+        </button>
+        
+        <button @click="handleLogout()" class="sidebar-link sidebar-button sidebar-logout">
+            <span class="sidebar-icon">🚪</span>
+            <span class="sidebar-text">로그아웃</span>
+        </button>
+    </nav>
+</aside>
+
+<!-- 사이드바 오버레이 (모바일) -->
+<div class="sidebar-overlay" 
+     x-show="sidebarOpen"
+     x-cloak
+     @click="sidebarOpen = false"
+     style="display: none;"></div>
+
+<!-- 사이드바 토글 버튼 (모바일) -->
+<button class="sidebar-toggle" @click="sidebarOpen = !sidebarOpen">
+    <span class="sidebar-toggle-icon">☰</span>
+</button>

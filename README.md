@@ -101,7 +101,23 @@ Router Node (질문 유형 분류)
 - 노드별 진행 상황 실시간 표시
 - 검색 쿼리 및 결과 시각화
 
-### 3. 콘텐츠 관리 시스템
+### 3. 관리자 대시보드
+
+**주요 기능:**
+- 문의사항 관리 및 통계
+- 채팅 통계 및 AI 기반 내용 분석
+- 관리자 비밀번호 MongoDB 저장 및 변경
+- 실시간 대시보드 및 차트
+
+**AI 기반 채팅 분석:**
+- 키워드 빈도 분석
+- 질문 유형 분류
+- 블록체인 네트워크 언급 통계
+- 주제 분포 분석
+- 감정 분석 및 사용자 니즈 파악
+- 인사이트 및 개선 제안
+
+### 4. 콘텐츠 관리 시스템
 
 **블로그 카테고리 분류:**
 
@@ -189,21 +205,16 @@ graph = StateGraph(ChatState)
 # git clone <your-repository-url>
 # cd multi-chain-tx-lookup
 
-# 가상 환경 생성 및 활성화
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# 의존성 설치
-pip install -r requirements.txt
-
-# 환경 변수 설정
-# .env 파일을 생성하고 API 키를 설정하세요
+# 의존성 설치 및 환경 변수 설정
+# 자세한 내용은 아래 "설치 및 설정" 섹션을 참고하세요
 
 # 서버 실행
 python main.py
 ```
 
 서버가 `http://localhost:8000`에서 실행됩니다.
+
+**참고:** 상세한 설치 가이드는 아래 [설치 및 설정](#-설치-및-설정) 섹션을 참고하세요.
 
 ---
 
@@ -258,6 +269,10 @@ OPENAI_MODEL=gpt-4o-mini
 MONGODB_URI=your_mongodb_connection_string
 MONGODB_DATABASE=your_database_name
 
+# 관리자 비밀번호 (선택사항, MongoDB에 저장되면 MongoDB 우선)
+# 참고: 강력한 비밀번호를 사용하고 정기적으로 변경하세요
+ADMIN_PASSWORD=your_secure_password
+
 # ============================================
 # 선택적 환경 변수
 # ============================================
@@ -279,6 +294,9 @@ WRITER_TEMPERATURE=0.7
 
 # 로깅
 LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
+
+# 환경 설정 (development 또는 production)
+ENVIRONMENT=production  # development 또는 production
 
 # LangSmith 추적 (선택사항)
 LANGSMITH_TRACING=true
@@ -329,9 +347,9 @@ python scripts/data/import_faq.py
 **로컬 개발 환경:**
 ```bash
 python main.py
-# 또는
-uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
+
+자세한 개발 환경 설정은 [개발 가이드](#-개발-가이드) 섹션을 참고하세요.
 
 ### 트랜잭션 조회 사용법
 
@@ -410,6 +428,10 @@ GET /api/chat/history/{session_id}
 DELETE /api/chat/history/{session_id}
 ```
 
+#### 관리자 API
+
+**참고:** 관리자 API는 인증이 필요하며, 프로덕션 환경에서는 적절한 접근 제어가 설정되어 있습니다.
+
 ### API 사용 예시
 
 **Python:**
@@ -461,6 +483,7 @@ docker-compose up -d
 docker-compose logs -f web
 ```
 
+
 #### 3. 컨테이너 중지
 
 ```bash
@@ -507,12 +530,13 @@ sudo ./scripts/deploy/start_application.sh
 
 ### 프로덕션 환경 변수
 
-프로덕션 환경에서는 다음 환경 변수를 반드시 설정하세요:
+프로덕션 환경에서는 다음 사항을 반드시 확인하세요:
 
-```bash
-# 보안 관련 환경 변수는 프로덕션 환경에 맞게 설정하세요
-# 성능 및 모니터링 설정도 환경에 맞게 구성하세요
-```
+- 모든 API 키와 비밀번호는 환경 변수로 관리
+- `LOG_LEVEL`은 `INFO` 또는 `WARNING`으로 설정 (DEBUG 사용 금지)
+- `ENVIRONMENT=production` 설정
+- SSL/TLS 인증서 정기 갱신 확인
+- 정기적인 보안 업데이트 및 모니터링
 
 ---
 
@@ -526,8 +550,10 @@ multi-chain-tx-lookup/
 │   ├── graph.py               # LangGraph 워크플로우
 │   ├── configuration.py       # 설정 관리
 │   ├── models.py             # 타입 정의
-│   ├── mongodb_client.py     # MongoDB 연결
+│   ├── mongodb_client.py     # MongoDB 연결 및 통계
 │   ├── vector_store.py       # 벡터 검색
+│   ├── analyzers/            # AI 분석 모듈
+│   │   └── chat_analyzer.py # 채팅 내용 AI 분석
 │   ├── nodes/                # LangGraph 노드
 │   │   ├── router.py        # 질문 분류
 │   │   ├── specialists/     # 전문가 에이전트
@@ -538,10 +564,27 @@ multi-chain-tx-lookup/
 │       ├── transaction_service.py
 │       └── chain_configs.py
 ├── templates/               # HTML 템플릿
+│   ├── admin/               # 관리자 페이지
+│   ├── components/          # 재사용 컴포넌트
+│   ├── content/             # 콘텐츠 페이지
+│   ├── features/            # 기능 페이지
+│   ├── legal/               # 법적 문서
+│   └── pages/               # 메인 페이지
 ├── static/                  # 정적 파일
+│   ├── css/                # 스타일시트
+│   └── js/                 # JavaScript
 ├── scripts/                # 유틸리티 스크립트
+│   ├── data/              # 데이터 관리
+│   ├── deploy/             # 배포 스크립트
+│   └── ssl/                # SSL 인증서 관리
 ├── docs/                   # 문서
 ├── tests/                  # 테스트
+├── docker/                 # Docker 설정
+│   ├── Dockerfile.prod    # 프로덕션 이미지
+│   └── Dockerfile.dev     # 개발 이미지
+├── wordpress/             # Nginx 설정
+│   └── nginx/
+│       └── nginx.conf     # Nginx 설정 파일
 └── main.py                # FastAPI 애플리케이션
 ```
 
@@ -551,8 +594,7 @@ multi-chain-tx-lookup/
 # 개발 모드로 실행 (자동 리로드)
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 
-# 디버그 모드
-LOG_LEVEL=DEBUG python main.py
+# 참고: 프로덕션 환경에서는 --reload 옵션을 사용하지 마세요
 ```
 
 ### 코드 스타일
@@ -576,44 +618,38 @@ python -m pytest tests/test_logging.py -v
 
 ## 🔧 문제 해결
 
-### 일반적인 문제
+### 프로젝트 특화 문제
 
-#### MongoDB 연결 실패
+#### 1. CoinGecko API 365일 제한으로 인한 Grader 무한 루프
 
-**증상:** "MongoDB 연결 실패" 오류
+**발생 상황:**
+- 사용자가 365일 이전 과거 시세를 요청
+- CoinGecko API가 401 오류 반환 (무료 플랜 제한)
+- 시스템이 "365일 제한" 안내 메시지 반환
+- **Grader가 이 시스템 메시지를 낮게 평가(0.3~0.4점)하여 재검색 시도**
+- 재검색 → 동일한 시스템 메시지 → 낮은 점수 → 무한 루프 발생
 
-**해결 방법:**
-1. `.env` 파일의 `MONGODB_URI` 확인
-2. MongoDB Atlas IP 화이트리스트 확인
-3. 네트워크 연결 확인
+**근본 원인:**
+- Grader가 시스템 안내 메시지를 일반 검색 결과로 평가
+- 시스템 메시지의 `source` 필드를 확인하지 않음
 
-#### OpenAI API 오류
+**최종 해결책:**
+- `grader.py`에서 `source == "system_notice"`인 결과를 자동으로 0.9점으로 통과 처리
+- CoinGecko API 호출 전에 365일 제한 사전 체크 추가
+- 시스템 메시지는 Grader 평가를 거치지 않고 바로 Writer로 전달
 
-**증상:** "OpenAI API 키가 설정되지 않았습니다"
+**코드 위치:**
+- `chatbot/nodes/deep_research/grader.py` (61-76줄)
+- `chatbot/coingecko.py` (365일 제한 사전 체크)
+- `chatbot/nodes/deep_research/researcher.py` (시스템 메시지 반환)
 
-**해결 방법:**
-1. `.env` 파일에 `OPENAI_API_KEY` 설정 확인
-2. API 키 유효성 확인
-3. API 사용량 한도 확인
-
-#### 벡터 검색 인덱스 오류
-
-**증상:** FAQ 검색이 작동하지 않음
-
-**해결 방법:**
-1. MongoDB Atlas에서 벡터 검색 인덱스 생성 확인
-2. 환경 변수에 설정된 인덱스 이름 확인
-3. 환경 변수에 설정된 컬렉션 이름 확인
-
-### 디버그 모드
+### 로그 레벨 설정
 
 ```bash
-# 로그 레벨 설정
-LOG_LEVEL=DEBUG python main.py
+# 개발 환경에서만 사용
+LOG_LEVEL=INFO python main.py
 
-# LangSmith 추적 활성화 (선택사항)
-LANGSMITH_TRACING=true
-LANGSMITH_API_KEY=your_langsmith_api_key
+# 참고: 프로덕션 환경에서는 DEBUG 레벨을 사용하지 마세요
 ```
 
 ### 로그 확인

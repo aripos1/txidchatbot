@@ -10,27 +10,41 @@
 
 {% block content %}
 <div class="admin-page" x-data="adminData()" x-init="init()">
-    <div class="admin-container">
-        <div class="admin-header">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl);">
-                <h1 class="admin-title">문의사항 관리</h1>
-                <button @click="logout()" class="btn-logout">로그아웃</button>
-            </div>
+    {% include "admin/components/sidebar.html" %}
+    
+    <div class="admin-wrapper">
+        <div class="admin-container">
+            <div class="admin-header">
+                <div class="admin-header-top">
+                    <h1 class="admin-title">문의사항 관리</h1>
+                </div>
             <div class="admin-stats">
                 <div class="stat-card">
-                    <div class="stat-label">전체</div>
+                    <div class="stat-card-header">
+                        <div class="stat-label">전체</div>
+                        <div class="stat-icon">📊</div>
+                    </div>
                     <div class="stat-value" x-text="totalCount">0</div>
                 </div>
                 <div class="stat-card stat-pending">
-                    <div class="stat-label">대기중</div>
+                    <div class="stat-card-header">
+                        <div class="stat-label">대기중</div>
+                        <div class="stat-icon">⏳</div>
+                    </div>
                     <div class="stat-value" x-text="pendingCount">0</div>
                 </div>
                 <div class="stat-card stat-replied">
-                    <div class="stat-label">답변완료</div>
+                    <div class="stat-card-header">
+                        <div class="stat-label">답변완료</div>
+                        <div class="stat-icon">✅</div>
+                    </div>
                     <div class="stat-value" x-text="repliedCount">0</div>
                 </div>
                 <div class="stat-card stat-closed">
-                    <div class="stat-label">종료</div>
+                    <div class="stat-card-header">
+                        <div class="stat-label">종료</div>
+                        <div class="stat-icon">🔒</div>
+                    </div>
                     <div class="stat-value" x-text="closedCount">0</div>
                 </div>
             </div>
@@ -43,7 +57,8 @@
                 <option value="replied">답변완료</option>
                 <option value="closed">종료</option>
             </select>
-            <button @click="loadInquiries()" class="btn-refresh">새로고침</button>
+            <button @click="loadInquiries()" class="btn btn-primary">새로고침</button>
+            <a href="/admin/chat/stats" class="btn btn-outline">채팅 통계</a>
         </div>
 
         <div class="inquiries-list" x-show="!loading && inquiries.length > 0">
@@ -80,7 +95,71 @@
         </div>
 
         <div class="loading-state" x-show="loading">
+            <div class="loading-spinner"></div>
             <p>로딩 중...</p>
+        </div>
+    </div>
+
+    <!-- 비밀번호 변경 모달 -->
+    <div x-show="showChangePasswordModal" 
+         x-cloak
+         class="modal-overlay"
+         @click.self="showChangePasswordModal = false">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">비밀번호 변경</h2>
+                <button type="button" 
+                        class="modal-close"
+                        @click="showChangePasswordModal = false; passwordForm = {current_password: '', new_password: '', confirm_password: '', error: ''}">
+                    ×
+                </button>
+            </div>
+            <form @submit.prevent="changePassword()" class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">현재 비밀번호</label>
+                    <input type="password" 
+                           class="form-input"
+                           x-model="passwordForm.current_password" 
+                           required
+                           placeholder="현재 비밀번호">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">새 비밀번호</label>
+                    <input type="password" 
+                           class="form-input"
+                           x-model="passwordForm.new_password" 
+                           required
+                           minlength="6"
+                           placeholder="새 비밀번호 (최소 6자)">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">새 비밀번호 확인</label>
+                    <input type="password" 
+                           class="form-input"
+                           x-model="passwordForm.confirm_password" 
+                           required
+                           minlength="6"
+                           placeholder="새 비밀번호 확인">
+                </div>
+                <div x-show="passwordForm.error" 
+                     x-text="passwordForm.error"
+                     class="form-error"></div>
+            </form>
+            <div class="modal-footer">
+                <button type="button" 
+                        class="btn btn-secondary"
+                        @click="showChangePasswordModal = false; passwordForm = {current_password: '', new_password: '', confirm_password: '', error: ''}">
+                    취소
+                </button>
+                <button type="submit" 
+                        class="btn btn-primary"
+                        :disabled="passwordForm.loading"
+                        @click="changePassword()">
+                    <span x-show="!passwordForm.loading">변경</span>
+                    <span x-show="passwordForm.loading">변경 중...</span>
+                </button>
+            </div>
+        </div>
         </div>
     </div>
 </div>
@@ -97,6 +176,14 @@ function adminData() {
         pendingCount: 0,
         repliedCount: 0,
         closedCount: 0,
+        showChangePasswordModal: false,
+        passwordForm: {
+            current_password: '',
+            new_password: '',
+            confirm_password: '',
+            error: '',
+            loading: false
+        },
         
         async init() {
             // 통계와 문의사항을 동시에 로드 (병렬 처리)
@@ -140,6 +227,7 @@ function adminData() {
                 // 에러 발생 시에도 기본값 유지 (0으로 표시)
             }
         },
+        
         
         async loadInquiries() {
             this.loading = true;
@@ -219,6 +307,66 @@ function adminData() {
             }
         },
         
+        async changePassword() {
+            // 입력 검증
+            if (!this.passwordForm.current_password || !this.passwordForm.new_password || !this.passwordForm.confirm_password) {
+                this.passwordForm.error = '모든 필드를 입력해주세요.';
+                return;
+            }
+            
+            if (this.passwordForm.new_password !== this.passwordForm.confirm_password) {
+                this.passwordForm.error = '새 비밀번호가 일치하지 않습니다.';
+                return;
+            }
+            
+            if (this.passwordForm.new_password.length < 6) {
+                this.passwordForm.error = '비밀번호는 최소 6자 이상이어야 합니다.';
+                return;
+            }
+            
+            this.passwordForm.error = '';
+            this.passwordForm.loading = true;
+            
+            try {
+                const response = await fetch('/api/admin/change-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        current_password: this.passwordForm.current_password,
+                        new_password: this.passwordForm.new_password,
+                        confirm_password: this.passwordForm.confirm_password
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    alert('비밀번호가 성공적으로 변경되었습니다.');
+                    this.showChangePasswordModal = false;
+                    this.passwordForm = {
+                        current_password: '',
+                        new_password: '',
+                        confirm_password: '',
+                        error: '',
+                        loading: false
+                    };
+                } else {
+                    this.passwordForm.error = data.message || '비밀번호 변경에 실패했습니다.';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                this.passwordForm.error = '비밀번호 변경 중 오류가 발생했습니다.';
+            } finally {
+                this.passwordForm.loading = false;
+            }
+        },
+        
+        sidebarOpen: false,
+        currentPath: window.location.pathname,
+        
         async logout() {
             if (!confirm('로그아웃하시겠습니까?')) {
                 return;
@@ -242,6 +390,10 @@ function adminData() {
                 console.error('Error:', error);
                 alert('로그아웃에 실패했습니다.');
             }
+        },
+        
+        handleLogout() {
+            this.logout();
         },
         
         getCategoryName(category) {
