@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}문의사항{% endblock %}
+
+{% block meta_description %}Multi Chain Explorer에 대한 문의사항이나 피드백을 보내주세요.{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/contact.css">
+{% endblock %}
+
+{% block content %}
+<div class="contact-page">
+    <div class="contact-container">
+        <div class="contact-hero">
+            <h1 class="contact-title">문의사항</h1>
+            <p class="contact-description">
+                서비스에 대한 문의사항이나 피드백을 보내주세요.<br>
+                가능한 한 빠르게 답변드리겠습니다.
+            </p>
+        </div>
+
+        <div class="contact-form-wrapper">
+            <form id="contactForm" class="contact-form">
+                <div class="form-group">
+                    <label for="email" class="form-label">
+                        이메일 <span class="required">*</span>
+                    </label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        class="form-input" 
+                        placeholder="your@email.com"
+                        required
+                        autocomplete="email"
+                    >
+                    <span class="form-error" id="emailError"></span>
+                </div>
+
+                <div class="form-group">
+                    <label for="category" class="form-label">
+                        문의 유형 <span class="required">*</span>
+                    </label>
+                    <select 
+                        id="category" 
+                        name="category" 
+                        class="form-select" 
+                        required
+                    >
+                        <option value="">선택해주세요</option>
+                        <option value="general">일반 문의</option>
+                        <option value="bug">버그 신고</option>
+                        <option value="feature">기능 제안</option>
+                        <option value="feedback">피드백</option>
+                        <option value="other">기타</option>
+                    </select>
+                    <span class="form-error" id="categoryError"></span>
+                </div>
+
+                <div class="form-group">
+                    <label for="subject" class="form-label">
+                        제목 <span class="required">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="subject" 
+                        name="subject" 
+                        class="form-input" 
+                        placeholder="문의 제목을 입력해주세요"
+                        required
+                        maxlength="200"
+                    >
+                    <span class="form-error" id="subjectError"></span>
+                </div>
+
+                <div class="form-group">
+                    <label for="message" class="form-label">
+                        내용 <span class="required">*</span>
+                    </label>
+                    <textarea 
+                        id="message" 
+                        name="message" 
+                        class="form-textarea" 
+                        rows="8"
+                        placeholder="문의 내용을 자세히 입력해주세요"
+                        required
+                        maxlength="5000"
+                    ></textarea>
+                    <div class="form-counter">
+                        <span id="messageCounter">0</span> / 5000
+                    </div>
+                    <span class="form-error" id="messageError"></span>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-submit" id="submitBtn">
+                        <span class="btn-text">문의 보내기</span>
+                        <span class="btn-loader" id="submitLoader" style="display: none;">
+                            <span class="spinner"></span>
+                        </span>
+                    </button>
+                </div>
+            </form>
+
+            <div id="successMessage" class="success-message" style="display: none;">
+                <div class="success-icon">✓</div>
+                <h3>문의사항이 성공적으로 전송되었습니다!</h3>
+                <p>빠른 시일 내에 답변드리겠습니다.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('contactForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitLoader = document.getElementById('submitLoader');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const messageTextarea = document.getElementById('message');
+    const messageCounter = document.getElementById('messageCounter');
+    
+    // 글자 수 카운터
+    messageTextarea.addEventListener('input', function() {
+        messageCounter.textContent = this.value.length;
+    });
+
+    // 폼 제출 처리
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // 유효성 검사
+        const email = document.getElementById('email').value.trim();
+        const category = document.getElementById('category').value;
+        const subject = document.getElementById('subject').value.trim();
+        const message = document.getElementById('message').value.trim();
+        
+        // 에러 메시지 초기화
+        document.querySelectorAll('.form-error').forEach(el => {
+            el.textContent = '';
+        });
+        
+        let hasError = false;
+        
+        if (!email) {
+            document.getElementById('emailError').textContent = '이메일을 입력해주세요.';
+            hasError = true;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            document.getElementById('emailError').textContent = '올바른 이메일 형식을 입력해주세요.';
+            hasError = true;
+        }
+        
+        if (!category) {
+            document.getElementById('categoryError').textContent = '문의 유형을 선택해주세요.';
+            hasError = true;
+        }
+        
+        if (!subject) {
+            document.getElementById('subjectError').textContent = '제목을 입력해주세요.';
+            hasError = true;
+        }
+        
+        if (!message) {
+            document.getElementById('messageError').textContent = '내용을 입력해주세요.';
+            hasError = true;
+        }
+        
+        if (hasError) {
+            return;
+        }
+        
+        // 제출 버튼 비활성화
+        submitBtn.disabled = true;
+        btnText.textContent = '전송 중...';
+        submitLoader.style.display = 'inline-block';
+        
+        try {
+            const response = await fetch('/api/contact', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email,
+                    category,
+                    subject,
+                    message
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                // 성공 메시지 표시
+                form.style.display = 'none';
+                document.getElementById('successMessage').style.display = 'block';
+                
+                // 폼 초기화
+                form.reset();
+                messageCounter.textContent = '0';
+            } else {
+                // 에러 메시지 표시
+                const errorMsg = data.message || '문의사항 전송에 실패했습니다. 다시 시도해주세요.';
+                alert(errorMsg);
+                
+                // 제출 버튼 활성화
+                submitBtn.disabled = false;
+                btnText.textContent = '문의 보내기';
+                submitLoader.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('문의사항 전송 중 오류가 발생했습니다. 다시 시도해주세요.');
+            
+            // 제출 버튼 활성화
+            submitBtn.disabled = false;
+            btnText.textContent = '문의 보내기';
+            submitLoader.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

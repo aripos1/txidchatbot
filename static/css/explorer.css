@@ -128,10 +128,12 @@
     box-shadow: var(--shadow-sm);
     padding: var(--space-xl);
     min-height: 100px;
+    display: block; /* 항상 표시 */
 }
 
 .result-area:empty {
-    display: none;
+    /* empty일 때도 표시 (로딩 메시지 등을 위해) */
+    min-height: 100px;
 }
 
 .transaction-card {

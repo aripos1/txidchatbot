@@ -1005,8 +1005,8 @@ function formatMessage(text) {
         (match) => {
             let fixedUrl = match
                 .replace(/xn--com[^\/]*/gi, 'com')
-                .replace(/\)[^\/]*/g, '')
-                .replace(/[^\/]$/, '');
+                .replace(/\)[^\/]*/g, '');
+            // .replace(/[^\/]$/, '') 제거 - 이 정규식이 URL의 마지막 문자를 잘라버림
             
             if (fixedUrl.includes('bithumb')) {
                 if (fixedUrl.includes('support.bithumb')) {

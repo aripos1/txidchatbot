@@ -58,6 +58,23 @@ async def grader(state: ChatState):
             "is_sufficient": False
         }
     
+    # 시스템 안내 메시지 자동 합격 (365일 제한 등)
+    has_system_notice = any(
+        result.get("source") == "system_notice"
+        for result in web_search_results
+    )
+    
+    if has_system_notice:
+        logger.info("✅ 시스템 안내 메시지 - 자동 합격")
+        print("[Grader] ✅ 시스템 안내 메시지 - 자동 합격", file=sys.stdout, flush=True)
+        notice_result = next((r for r in web_search_results if r.get("source") == "system_notice"), None)
+        notice_text = notice_result.get("snippet", "시스템 안내 메시지") if notice_result else "시스템 안내"
+        return {
+            "grader_score": 0.9,
+            "grader_feedback": notice_text,
+            "is_sufficient": True
+        }
+    
     # 시세 API 결과 자동 합격
     api_sources = {"coinmarketcap_api", "coingecko_api"}
     has_api_result = any(

@@ -301,6 +301,14 @@ async def researcher(state: ChatState):
     today = datetime.now(kst).date()
     is_past_date = requested_date and requested_date.date() < today
     
+    # 365일 제한 확인 (CoinGecko 무료 플랜 제한)
+    date_limit_exceeded = False
+    if is_past_date and requested_date:
+        days_diff = (today - requested_date.date()).days
+        if days_diff > 365:
+            date_limit_exceeded = True
+            logger.info(f"⚠️ 365일 제한 초과: 요청 날짜가 {days_diff}일 전입니다.")
+    
     # 시세 질문이면 API 우선 사용
     if is_price_query:
         logger.info("✅ 시세 질문 감지")
@@ -311,6 +319,22 @@ async def researcher(state: ChatState):
         if coin_names:
             logger.info(f"추출된 코인: {coin_names}")
             print(f"[Researcher] 추출된 코인: {', '.join(coin_names)}", file=sys.stdout, flush=True)
+            
+            # 365일 제한 초과 시 안내 메시지 반환
+            if date_limit_exceeded:
+                date_str = requested_date.strftime("%Y년 %m월 %d일") if requested_date else "해당 날짜"
+                limit_message = {
+                    "title": "과거 시세 조회 제한 안내",
+                    "snippet": f"죄송합니다. 현재는 최근 365일 이내의 과거 시세만 조회할 수 있습니다.\n\n"
+                              f"요청하신 날짜({date_str})는 현재로부터 365일을 초과하여 조회가 제한됩니다.\n\n"
+                              f"더 오래된 과거 시세 조회 기능은 추후 지원 예정입니다. 양해 부탁드립니다.",
+                    "url": "",
+                    "source": "system_notice",
+                    "score": 0.0,
+                }
+                logger.info("⚠️ 365일 제한 초과 - 사용자 안내 메시지 반환")
+                print("[Researcher] ⚠️ 365일 제한 초과 - 안내 메시지 반환", file=sys.stdout, flush=True)
+                return {"web_search_results": [limit_message]}
             
             # 여러 코인 병렬 조회
             price_results = await _get_prices_from_api(coin_names, is_past_date, requested_date)

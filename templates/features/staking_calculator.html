@@ -3,9 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>스테이킹 보상 계산기</title>
+    
+    {# Google AdSense 메타 태그 #}
+    <meta name="google-adsense-account" content="ca-pub-5240424281235281">
+    
+    {# SEO 메타 태그 #}
+    <meta name="description" content="스테이킹 보상 계산기. 다양한 블록체인 네트워크의 스테이킹 수익률을 계산해보세요.">
+    <meta name="keywords" content="스테이킹, 스테이킹 계산기, 스테이킹 보상, 암호화폐 스테이킹">
+    <meta name="author" content="Multi Chain Explorer">
+    <meta name="robots" content="index, follow">
+    
+    {# Open Graph 메타 태그 #}
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="스테이킹 보상 계산기 - Multi Chain Explorer">
+    <meta property="og:description" content="스테이킹 보상 계산기">
+    <meta property="og:url" content="https://txid.shop/stk">
+    
+    {# Google AdSense 스크립트 #}
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5240424281235281" crossorigin="anonymous"></script>
+    
+    <title>스테이킹 보상 계산기 - Multi Chain Explorer</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    {% include "nav.html" %}
+    {% include "components/nav.html" %}
     <style>
         :root {
             /* explorer_ui.html의 색상 시스템 반영 */
@@ -1130,5 +1149,21 @@
             return '2025-06-11';
         }
     </script>
+    
+    <!-- Footer -->
+    <footer style="background-color: var(--card-bg); padding: 2rem 1.5rem; margin-top: 3rem; text-align: center; border-top: 1px solid var(--card-border);">
+        <div style="max-width: 1200px; margin: 0 auto;">
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                © 2025 Multi Chain Explorer. All rights reserved.
+            </p>
+            <nav style="display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; align-items: center;">
+                <a href="/privacy-policy" style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary-hover)'" onmouseout="this.style.color='var(--primary-color)'">개인정보처리방침</a>
+                <span style="color: var(--card-border);">|</span>
+                <a href="/terms-of-service" style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary-hover)'" onmouseout="this.style.color='var(--primary-color)'">이용약관</a>
+                <span style="color: var(--card-border);">|</span>
+                <a href="/" style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem; transition: color 0.3s;" onmouseover="this.style.color='var(--primary-hover)'" onmouseout="this.style.color='var(--primary-color)'">홈</a>
+            </nav>
+        </div>
+    </footer>
 </body>
 </html> 

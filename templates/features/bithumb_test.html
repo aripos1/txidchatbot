@@ -1,12 +1,26 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <title>빗썸 API 테스트</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    {# Google AdSense 메타 태그 #}
+    <meta name="google-adsense-account" content="ca-pub-5240424281235281">
+    
+    {# SEO 메타 태그 #}
+    <meta name="description" content="빗썸 API 테스트 도구. 빗썸 거래소 API를 테스트하고 검증할 수 있습니다.">
+    <meta name="keywords" content="빗썸, 빗썸 API, 거래소 API, 빗썸 테스트">
+    <meta name="author" content="Multi Chain Explorer">
+    <meta name="robots" content="noindex, nofollow">
+    
+    {# Google AdSense 스크립트 #}
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5240424281235281" crossorigin="anonymous"></script>
+    
+    <title>빗썸 API 테스트 - Multi Chain Explorer</title>
+    
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    {% include "nav.html" %}
+    {% include "components/nav.html" %}
     <style>
         :root {
             --primary-color: #4a90e2;
@@ -614,5 +628,21 @@
             };
         }
     </script>
+    
+    <!-- Footer -->
+    <footer style="background-color: #ffffff; padding: 2rem 1.5rem; margin-top: 3rem; text-align: center; border-top: 1px solid #e0e6ed;">
+        <div style="max-width: 1200px; margin: 0 auto;">
+            <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">
+                © 2025 Multi Chain Explorer. All rights reserved.
+            </p>
+            <nav style="display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap; align-items: center;">
+                <a href="/privacy-policy" style="color: #3b82f6; text-decoration: none; font-size: 0.9rem; transition: color 0.3s;" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#3b82f6'">개인정보처리방침</a>
+                <span style="color: #e5e7eb;">|</span>
+                <a href="/terms-of-service" style="color: #3b82f6; text-decoration: none; font-size: 0.9rem; transition: color 0.3s;" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#3b82f6'">이용약관</a>
+                <span style="color: #e5e7eb;">|</span>
+                <a href="/" style="color: #3b82f6; text-decoration: none; font-size: 0.9rem; transition: color 0.3s;" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#3b82f6'">홈</a>
+            </nav>
+        </div>
+    </footer>
 </body>
 </html> 

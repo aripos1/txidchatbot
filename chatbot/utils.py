@@ -69,6 +69,8 @@ def detect_transaction_hash(text: str) -> Optional[str]:
     hex_pattern = r'[0-9a-fA-F]{64}'
     # Base64 패턴 (44-48자)
     base64_pattern = r'[A-Za-z0-9+/]{44,48}={0,2}'
+    # Base58 패턴 (Solana 등, 32-88자) - Base58은 1, I, O, 0을 제외한 영숫자
+    base58_pattern = r'[1-9A-HJ-NP-Za-km-z]{32,88}'
     
     # 0x 접두사가 있는 경우 우선 처리
     hex_with_prefix_match = re.search(hex_with_prefix_pattern, text_clean, re.IGNORECASE)
@@ -87,11 +89,19 @@ def detect_transaction_hash(text: str) -> Optional[str]:
             logger.debug(f"해시 감지 (64자 hex): {matched[:20]}...")
             return matched
     
-    # Base64 패턴
+    # Base58 패턴 (Solana 등) - Base64보다 먼저 체크 (더 긴 패턴이므로)
+    # Base58은 Base64와 겹칠 수 있으므로, 더 긴 패턴을 우선 매칭
+    base58_match = re.search(base58_pattern, text_clean)
+    if base58_match:
+        matched = base58_match.group(0)
+        logger.debug(f"해시 감지 (Base58, {len(matched)}자): {matched[:20]}...")
+        return matched
+    
+    # Base64 패턴 (44-48자)
     base64_match = re.search(base64_pattern, text_clean)
     if base64_match:
         matched = base64_match.group(0)
-        logger.debug(f"해시 감지 (Base64): {matched[:20]}...")
+        logger.debug(f"해시 감지 (Base64, {len(matched)}자): {matched[:20]}...")
         return matched
     
     logger.debug(f"해시 감지 실패. 텍스트 길이: {len(text_clean)}, 처음 100자: {text_clean[:100]}")

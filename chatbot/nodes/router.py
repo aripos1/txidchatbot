@@ -444,10 +444,14 @@ async def router(state: ChatState):
         
         # 트랜잭션 타입인 경우 해시 설정
         if routing_decision.question_type == QuestionType.TRANSACTION:
+            logger.info(f"트랜잭션 질문 감지. 사용자 메시지 전체 길이: {len(user_message)}자")
+            logger.info(f"사용자 메시지 처음 100자: {user_message[:100]}")
             detected_hash = detect_transaction_hash(user_message)
             if detected_hash:
                 result_state["transaction_hash"] = detected_hash
-                logger.info(f"✅ 트랜잭션 해시 감지: {detected_hash[:20]}...")
+                logger.info(f"✅ 트랜잭션 해시 감지: {detected_hash} (길이: {len(detected_hash)}자)")
+            else:
+                logger.warning(f"트랜잭션 해시 추출 실패. 사용자 메시지: {user_message[:200]}")
         
         return result_state
     except Exception as e:

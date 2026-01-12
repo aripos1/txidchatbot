@@ -93,9 +93,59 @@ docker-compose restart nginx
 docker-compose exec nginx ls -la /etc/letsencrypt/live/txid.shop/
 ```
 
+## 인증서 관리 스크립트
+
+### 통합 관리 스크립트 (권장)
+```bash
+# 인증서 상태 확인
+./scripts/ssl/ssl_manager.sh check
+
+# 특정 도메인 확인
+./scripts/ssl/ssl_manager.sh check example.com
+
+# 인증서 갱신
+./scripts/ssl/ssl_manager.sh renew
+```
+
+### 개별 스크립트 사용
+
+#### 1. 인증서 상태 확인 (`check_certificate.sh`)
+```bash
+# 인증서 만료일 확인 및 경고
+./scripts/ssl/check_certificate.sh
+
+# 특정 도메인 확인
+./scripts/ssl/check_certificate.sh example.com
+```
+
+**확인 항목:**
+- 인증서 만료일
+- 남은 일수
+- 만료 30일 전 경고
+- 만료 7일 전 긴급 알림
+- 이미 만료된 경우 즉시 알림
+
+#### 2. 인증서 수동 갱신 (`renew_certificate.sh`)
+```bash
+# 인증서 갱신 (필요할 때만 실행)
+./scripts/ssl/renew_certificate.sh
+```
+
+**주의:** 이 스크립트는 실제로 인증서를 갱신합니다. 자동 갱신이 작동 중이면 일반적으로 필요 없습니다.
+
+### 자동 모니터링 설정 (선택사항)
+```bash
+# crontab에 추가하여 매일 확인 (읽기 전용, 안전)
+0 9 * * * /path/to/scripts/ssl/check_certificate.sh >> /var/log/ssl-check.log 2>&1
+
+# 또는 통합 스크립트 사용
+0 9 * * * /path/to/scripts/ssl/ssl_manager.sh check >> /var/log/ssl-check.log 2>&1
+```
+
 ## 참고사항
 - Let's Encrypt 인증서는 90일마다 갱신 필요
 - 최초 발급은 수동으로 진행 필요
 - 갱신은 만료 30일 전 자동으로 진행
 - certbot 서비스가 항상 실행 중이어야 자동 갱신 작동
+- 인증서 모니터링 스크립트로 만료일 확인 가능
 

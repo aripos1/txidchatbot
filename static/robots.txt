@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /bithumb-test
+
+# Google AdSense 크롤러
+User-agent: Mediapartners-Google
+Allow: /
+
+# Sitemap 위치
+Sitemap: https://txid.shop/sitemap.xml
+

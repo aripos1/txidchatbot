@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }}{% endblock %}
+
+{% block meta_description %}{{ post.excerpt }}{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/main.css">
+<style>
+.blog-post-page {
+    padding: calc(var(--space-3xl) + 60px) var(--space-lg) var(--space-3xl);
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.blog-post-header {
+    text-align: center;
+    margin-bottom: var(--space-3xl);
+    padding: var(--space-3xl) var(--space-lg);
+    background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--bg-primary) 100%);
+    border-radius: var(--radius-lg);
+}
+
+.post-category {
+    display: inline-block;
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-primary);
+    color: white;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--space-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.post-title {
+    font-size: var(--font-size-4xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+    line-height: var(--line-height-tight);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.post-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-lg);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    flex-wrap: wrap;
+    font-weight: var(--font-weight-medium);
+}
+
+.post-content {
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-relaxed);
+    color: var(--text-secondary);
+}
+
+.post-content h2 {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin-top: var(--space-3xl);
+    margin-bottom: var(--space-lg);
+    padding-bottom: var(--space-sm);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.post-content h3 {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-top: var(--space-2xl);
+    margin-bottom: var(--space-md);
+}
+
+.post-content p {
+    margin-bottom: var(--space-lg);
+}
+
+.post-content ul,
+.post-content ol {
+    margin-bottom: var(--space-lg);
+    padding-left: var(--space-xl);
+}
+
+.post-content li {
+    margin-bottom: var(--space-sm);
+}
+
+.post-content code {
+    background: var(--color-gray-100);
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-family-mono);
+    font-size: 0.9em;
+    color: var(--color-primary);
+}
+
+.post-content pre {
+    background: var(--color-gray-900);
+    color: var(--color-gray-100);
+    padding: var(--space-lg);
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+    margin: var(--space-lg) 0;
+}
+
+.post-content pre code {
+    background: transparent;
+    padding: 0;
+    color: inherit;
+}
+
+.post-content blockquote {
+    border-left: 4px solid var(--color-primary);
+    padding-left: var(--space-lg);
+    margin: var(--space-lg) 0;
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+.post-content a {
+    color: var(--color-primary);
+    text-decoration: underline;
+    transition: color var(--transition-base);
+}
+
+.post-content a:hover {
+    color: var(--color-primary-dark);
+}
+
+.post-navigation {
+    display: flex;
+    justify-content: space-between;
+    margin-top: var(--space-3xl);
+    padding-top: var(--space-2xl);
+    border-top: 2px solid var(--border-color);
+    gap: var(--space-lg);
+}
+
+.post-navigation .nav-link {
+    flex: 1;
+    padding: var(--space-lg);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all var(--transition-base);
+    border: 1px solid var(--border-color);
+    display: block;
+}
+
+.post-navigation .nav-link:hover {
+    background: var(--color-primary-50);
+    border-color: var(--color-primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.post-navigation .nav-link-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    margin-bottom: var(--space-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.post-navigation .nav-link-title {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+}
+
+@media (max-width: 768px) {
+    .blog-post-page {
+        padding: calc(var(--space-2xl) + 60px) var(--space-md) var(--space-2xl);
+    }
+    
+    .post-title {
+        font-size: var(--font-size-3xl);
+    }
+    
+    .post-navigation {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="blog-post-page">
+    <div class="blog-post-header">
+        <span class="post-category">{{ post.category }}</span>
+        <h1 class="post-title">{{ post.title }}</h1>
+        <div class="post-meta">
+            <span>📅 {{ post.date }}</span>
+            <span>⏱️ {{ post.read_time }}</span>
+        </div>
+    </div>
+
+    <div class="post-content">
+        {{ post.content | safe }}
+    </div>
+
+    <div class="post-navigation">
+        {% if post.prev %}
+        <a href="{{ post.prev.url }}" class="nav-link">
+            <div class="nav-link-label">← 이전 글</div>
+            <div class="nav-link-title">{{ post.prev.title }}</div>
+        </a>
+        {% else %}
+        <div></div>
+        {% endif %}
+        
+        {% if post.next %}
+        <a href="{{ post.next.url }}" class="nav-link" style="text-align: right;">
+            <div class="nav-link-label">다음 글 →</div>
+            <div class="nav-link-title">{{ post.next.title }}</div>
+        </a>
+        {% else %}
+        <div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,496 @@
+{% extends "base.html" %}
+
+{% block title %}서비스 소개{% endblock %}
+
+{% block meta_description %}Multi Chain Explorer는 31개 블록체인 네트워크의 트랜잭션을 한 번에 조회할 수 있는 무료 서비스입니다. AI 챗봇을 통해 블록체인 정보를 쉽게 얻어보세요.{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/main.css">
+<style>
+.about-page {
+    padding: calc(var(--space-3xl) + 60px) var(--space-lg) var(--space-3xl);
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.about-hero {
+    text-align: center;
+    margin-bottom: var(--space-3xl);
+    padding: var(--space-3xl) 0;
+    background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--bg-primary) 100%);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-3xl);
+}
+
+.about-title {
+    font-size: var(--font-size-5xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.about-subtitle {
+    font-size: var(--font-size-xl);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-lg);
+    font-weight: var(--font-weight-medium);
+}
+
+.about-description {
+    font-size: var(--font-size-lg);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    max-width: 800px;
+    margin: 0 auto var(--space-xl);
+}
+
+.about-section {
+    margin-bottom: var(--space-3xl);
+}
+
+.section-header {
+    text-align: center;
+    margin-bottom: var(--space-2xl);
+}
+
+.section-title {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+}
+
+.section-description {
+    font-size: var(--font-size-base);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-xl);
+    margin-top: var(--space-2xl);
+}
+
+.feature-card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2xl);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-base);
+    text-align: center;
+}
+
+.feature-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-xl);
+    border-color: var(--color-primary);
+}
+
+.feature-icon {
+    font-size: 4rem;
+    margin-bottom: var(--space-lg);
+    display: block;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+}
+
+.feature-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+}
+
+.feature-description {
+    font-size: var(--font-size-base);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+}
+
+.stats-section {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3xl);
+    margin: var(--space-3xl) 0;
+    color: white;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-2xl);
+    text-align: center;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat-number {
+    font-size: var(--font-size-5xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-sm);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.stat-label {
+    font-size: var(--font-size-lg);
+    opacity: 0.9;
+    font-weight: var(--font-weight-medium);
+}
+
+.values-section {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3xl);
+    margin: var(--space-3xl) 0;
+}
+
+.values-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--space-xl);
+    margin-top: var(--space-2xl);
+}
+
+.value-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.value-icon {
+    font-size: 2.5rem;
+    margin-bottom: var(--space-sm);
+}
+
+.value-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.value-description {
+    font-size: var(--font-size-base);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+}
+
+.cta-section {
+    text-align: center;
+    padding: var(--space-3xl);
+    background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--bg-primary) 100%);
+    border-radius: var(--radius-lg);
+    margin-top: var(--space-3xl);
+}
+
+.cta-title {
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+}
+
+.cta-description {
+    font-size: var(--font-size-lg);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xl);
+}
+
+.cta-buttons {
+    display: flex;
+    gap: var(--space-md);
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.cta-button {
+    display: inline-block;
+    padding: var(--space-md) var(--space-2xl);
+    background: var(--color-primary);
+    color: white;
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-base);
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-md);
+}
+
+.cta-button:hover {
+    background: var(--color-primary-dark);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.cta-button-secondary {
+    background: white;
+    color: var(--color-primary);
+    border: 2px solid var(--color-primary);
+}
+
+.cta-button-secondary:hover {
+    background: var(--color-primary-50);
+}
+
+@media (max-width: 768px) {
+    .about-page {
+        padding: calc(var(--space-2xl) + 60px) var(--space-md) var(--space-2xl);
+    }
+    
+    .about-title {
+        font-size: var(--font-size-3xl);
+    }
+    
+    .about-hero {
+        padding: var(--space-2xl) var(--space-lg);
+    }
+    
+    .feature-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .values-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .cta-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .cta-button {
+        width: 100%;
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="about-page">
+    <!-- Hero Section -->
+    <div class="about-hero">
+        <h1 class="about-title">Multi Chain Explorer</h1>
+        <p class="about-subtitle">31개 블록체인 네트워크를 한 번에</p>
+        <p class="about-description">
+            Multi Chain Explorer는 다양한 블록체인 네트워크의 트랜잭션을 한 번에 조회할 수 있는 무료 서비스입니다. 
+            복잡한 블록체인 탐색기를 여러 개 열어볼 필요 없이, 하나의 검색창으로 모든 네트워크를 검색할 수 있습니다.
+        </p>
+    </div>
+
+    <!-- 주요 기능 -->
+    <section class="about-section">
+        <div class="section-header">
+            <h2 class="section-title">주요 기능</h2>
+            <p class="section-description">
+                Multi Chain Explorer가 제공하는 강력한 기능들을 만나보세요.
+            </p>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <span class="feature-icon">🔍</span>
+                <h3 class="feature-title">멀티체인 트랜잭션 조회</h3>
+                <p class="feature-description">
+                    Bitcoin, Ethereum, BNB Smart Chain, Polygon 등 31개의 블록체인 네트워크에서 
+                    트랜잭션을 동시에 검색합니다. 어떤 네트워크에 속한 트랜잭션인지 몰라도 걱정 없습니다.
+                </p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">💬</span>
+                <h3 class="feature-title">AI 챗봇</h3>
+                <p class="feature-description">
+                    블록체인과 암호화폐에 대한 질문을 자연스러운 대화로 할 수 있습니다. 
+                    FAQ 검색, 웹 검색, 트랜잭션 조회 등 다양한 기능을 자동으로 활용합니다.
+                </p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">⚡</span>
+                <h3 class="feature-title">빠른 검색</h3>
+                <p class="feature-description">
+                    여러 네트워크를 동시에 검색하더라도 빠른 응답 속도를 제공합니다. 
+                    복잡한 설정이나 회원가입 없이 바로 사용할 수 있습니다.
+                </p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🌐</span>
+                <h3 class="feature-title">광범위한 네트워크 지원</h3>
+                <p class="feature-description">
+                    메이저 블록체인부터 최신 네트워크까지 다양한 체인을 지원합니다. 
+                    새로운 네트워크도 지속적으로 추가하고 있습니다.
+                </p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🔒</span>
+                <h3 class="feature-title">완전 무료</h3>
+                <p class="feature-description">
+                    모든 기능을 무료로 제공합니다. 회원가입이나 로그인 없이 
+                    바로 사용할 수 있으며, 개인정보를 수집하지 않습니다.
+                </p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">📱</span>
+                <h3 class="feature-title">반응형 디자인</h3>
+                <p class="feature-description">
+                    데스크톱, 태블릿, 모바일 등 모든 기기에서 최적화된 경험을 제공합니다. 
+                    언제 어디서나 블록체인 트랜잭션을 조회할 수 있습니다.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 통계 -->
+    <section class="stats-section">
+        <h2 class="section-title" style="color: white; margin-bottom: var(--space-2xl);">서비스 현황</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-number">31+</div>
+                <div class="stat-label">지원 네트워크</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">100%</div>
+                <div class="stat-label">무료 서비스</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">24/7</div>
+                <div class="stat-label">지속 운영</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">0</div>
+                <div class="stat-label">회원가입 필요</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 서비스 가치 -->
+    <section class="values-section">
+        <div class="section-header">
+            <h2 class="section-title">서비스 가치</h2>
+            <p class="section-description">
+                Multi Chain Explorer가 추구하는 가치와 원칙입니다.
+            </p>
+        </div>
+        <div class="values-grid">
+            <div class="value-item">
+                <div class="value-icon">🎯</div>
+                <h3 class="value-title">사용자 중심</h3>
+                <p class="value-description">
+                    복잡한 설정 없이 누구나 쉽게 사용할 수 있도록 설계했습니다. 
+                    직관적인 인터페이스로 블록체인 정보에 쉽게 접근할 수 있습니다.
+                </p>
+            </div>
+            <div class="value-item">
+                <div class="value-icon">🚀</div>
+                <h3 class="value-title">지속적인 개선</h3>
+                <p class="value-description">
+                    새로운 블록체인 네트워크를 지속적으로 추가하고, 
+                    사용자 피드백을 반영하여 서비스를 개선하고 있습니다.
+                </p>
+            </div>
+            <div class="value-item">
+                <div class="value-icon">🔐</div>
+                <h3 class="value-title">프라이버시 보호</h3>
+                <p class="value-description">
+                    개인정보를 수집하지 않으며, 트랜잭션 조회 기록도 저장하지 않습니다. 
+                    안전하고 프라이버시를 존중하는 서비스를 제공합니다.
+                </p>
+            </div>
+            <div class="value-item">
+                <div class="value-icon">🌍</div>
+                <h3 class="value-title">접근성</h3>
+                <p class="value-description">
+                    모든 사용자가 쉽게 접근할 수 있도록 무료로 제공하며, 
+                    언어와 지역에 관계없이 사용할 수 있습니다.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 지원 네트워크 -->
+    <section class="about-section">
+        <div class="section-header">
+            <h2 class="section-title">지원하는 네트워크</h2>
+            <p class="section-description">
+                현재 다음 블록체인 네트워크를 지원합니다.
+            </p>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3 class="feature-title">Bitcoin</h3>
+                <p class="feature-description">세계 최초의 블록체인 네트워크</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">Ethereum</h3>
+                <p class="feature-description">스마트 컨트랙트 플랫폼</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">BNB Smart Chain</h3>
+                <p class="feature-description">바이낸스 스마트 체인</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">Polygon</h3>
+                <p class="feature-description">이더리움 레이어 2 솔루션</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">Arbitrum</h3>
+                <p class="feature-description">이더리움 옵티미스틱 롤업</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">Optimism</h3>
+                <p class="feature-description">이더리움 레이어 2 네트워크</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">Base</h3>
+                <p class="feature-description">코인베이스 레이어 2 네트워크</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">Solana</h3>
+                <p class="feature-description">고성능 블록체인 네트워크</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">Tron</h3>
+                <p class="feature-description">TRX 기반 블록체인</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">Avalanche</h3>
+                <p class="feature-description">고속 블록체인 플랫폼</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">Fantom</h3>
+                <p class="feature-description">고속 블록체인 네트워크</p>
+            </div>
+            <div class="feature-card">
+                <h3 class="feature-title">그 외 20개 이상</h3>
+                <p class="feature-description">Cosmos, Polkadot, Near 등 다양한 네트워크</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <h2 class="cta-title">지금 시작해보세요</h2>
+        <p class="cta-description">
+            복잡한 설정 없이 바로 사용할 수 있습니다. 트랜잭션을 조회하거나 AI 챗봇과 대화해보세요.
+        </p>
+        <div class="cta-buttons">
+            <a href="/" class="cta-button">트랜잭션 조회하기</a>
+            <a href="/chat" class="cta-button cta-button-secondary">AI 챗봇 사용하기</a>
+            <a href="/guide" class="cta-button cta-button-secondary">이용가이드 보기</a>
+        </div>
+    </section>
+</div>
+{% endblock %}

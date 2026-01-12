@@ -100,6 +100,7 @@ class CoinGeckoService:
             coin_name: 코인명 (한국어 또는 영어 심볼)
             convert: 변환 통화 (기본값: krw, 소문자)
             target_date: 조회할 날짜 (None이면 현재 시세, 지정하면 과거 시세)
+                        주의: 무료 플랜은 최근 365일 이내 데이터만 조회 가능
         
         Returns:
             {
@@ -120,6 +121,21 @@ class CoinGeckoService:
         if not coin_id:
             logger.warning(f"⚠️ 코인게코 ID를 찾을 수 없습니다: {coin_name}")
             return None
+        
+        # 과거 날짜 조회 시 365일 제한 확인 (무료 플랜)
+        if target_date:
+            now = datetime.now(timezone.utc)
+            # 날짜만 비교 (시간 제외)
+            target_date_utc = target_date.replace(tzinfo=timezone.utc) if target_date.tzinfo is None else target_date
+            days_diff = (now.date() - target_date_utc.date()).days
+            
+            # 무료 플랜은 최근 365일 이내만 조회 가능
+            if days_diff > 365:
+                logger.warning(
+                    f"⚠️ 코인게코 무료 플랜 제한: 요청한 날짜({target_date_utc.date()})가 "
+                    f"현재로부터 {days_diff}일 전입니다. 무료 플랜은 최근 365일 이내 데이터만 조회 가능합니다."
+                )
+                return None
         
         # 캐시 확인 (과거 날짜는 캐시 사용 안 함)
         cache_key = f"{coin_id}_{convert_lower}_{target_date.strftime('%Y-%m-%d') if target_date else 'latest'}"
@@ -221,6 +237,21 @@ class CoinGeckoService:
                     currency_display = convert.upper() if result['price_krw'] else "USD"
                     logger.info(f"✅ 코인게코 API 조회 성공: {coin_id} = {price_display:,.2f} {currency_display}")
                     return result
+                elif response.status_code == 401:
+                    # 401 오류는 주로 날짜 제한 또는 API 키 문제
+                    error_data = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+                    error_message = error_data.get("error", {}).get("status", {}).get("error_message", response.text[:200])
+                    
+                    if "365 days" in error_message or "time range" in error_message.lower():
+                        logger.warning(
+                            f"⚠️ 코인게코 무료 플랜 제한: 과거 데이터 조회는 최근 365일 이내만 가능합니다. "
+                            f"요청한 날짜: {target_date.strftime('%Y-%m-%d') if target_date else 'N/A'}"
+                        )
+                    else:
+                        logger.warning(f"⚠️ 코인게코 API 인증 오류 (401): {error_message}")
+                    if target_date:
+                        logger.info("과거 날짜 조회 실패 - 다른 API나 웹 검색으로 폴백 필요")
+                    return None
                 else:
                     error_text = response.text[:500] if hasattr(response, 'text') else str(response.content[:500])
                     logger.warning(f"⚠️ 코인게코 API 오류: {response.status_code} - {error_text}")

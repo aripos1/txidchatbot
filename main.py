@@ -32,6 +32,17 @@ import re
 
 load_dotenv()
 
+# 환경 감지 및 설정
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production").lower()
+DEBUG_MODE = ENVIRONMENT == "development"
+RELOAD_ENABLED = os.getenv("RELOAD", "false").lower() == "true" if DEBUG_MODE else False
+
+# 환경별 로깅 레벨 설정
+if DEBUG_MODE:
+    default_log_level = "DEBUG"
+else:
+    default_log_level = "INFO"
+
 # LangSmith 추적 초기화 (환경 변수 확인 및 로깅)
 langsmith_tracing = os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
 langsmith_api_key = os.getenv("LANGSMITH_API_KEY")
@@ -96,7 +107,7 @@ else:
     print("="*60)
 
 # 로깅 설정 (가장 먼저 실행) - uvicorn 시작 전에 강제 적용
-log_level_str = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level_str = os.getenv("LOG_LEVEL", default_log_level).upper()
 log_level = getattr(logging, log_level_str, logging.INFO)
 
 # logging.basicConfig 사용 (force=True로 기존 설정 덮어쓰기)
@@ -111,6 +122,11 @@ logging.basicConfig(
 # 루트 로거 설정 강화
 root_logger = logging.getLogger()
 root_logger.setLevel(log_level)
+
+# httpx 로거를 WARNING 레벨로 설정 (HTTP 요청 로그 줄이기)
+httpx_logger = logging.getLogger("httpx")
+httpx_logger.setLevel(logging.WARNING)
+httpx_logger.propagate = True
 
 # 모든 하위 로거 설정 (propagate=True로 루트 로거 사용)
 for logger_name in ["uvicorn", "uvicorn.access", "uvicorn.error", "uvicorn.asgi",
@@ -195,6 +211,11 @@ async def startup_event():
         root.addHandler(handler)
         logger.info("루트 로거 핸들러 추가됨")
     
+    # httpx 로거를 WARNING 레벨로 설정 (HTTP 요청 로그 줄이기)
+    httpx_logger = logging.getLogger("httpx")
+    httpx_logger.setLevel(logging.WARNING)
+    httpx_logger.propagate = True
+    
     # 하위 로거 재설정 (중요: chatbot 로거들)
     for logger_name in ["uvicorn", "uvicorn.access", "uvicorn.error", "chatbot", 
                         "chatbot.chatbot_graph", "chatbot.mongodb_client", "chatbot.vector_store"]:
@@ -275,11 +296,11 @@ async def health_check():
 async def home(request: Request):
     excluded_chains = ["litecoin", "dogecoin"]
     supported_chains = [{ "name": config["name"], "symbol": config["symbol"] } for key, config in CHAIN_CONFIGS.items() if "name" in config and key not in excluded_chains]
-    return templates.TemplateResponse("explorer_ui.html", {"request": request, "supported_chains": supported_chains})
+    return templates.TemplateResponse("pages/explorer_ui.html", {"request": request, "supported_chains": supported_chains})
 
 @app.get("/stk", response_class=HTMLResponse)
 async def staking_calculator(request: Request):
-    return templates.TemplateResponse("staking_calculator.html", {"request": request})
+    return templates.TemplateResponse("features/staking_calculator.html", {"request": request})
 
 @app.get("/api/tx/{txid}")
 async def get_transaction(txid: str):
@@ -306,31 +327,544 @@ async def get_chains():
 
 @app.get("/bithumb-test")
 async def bithumb_test_page(request: Request):
-    return templates.TemplateResponse("bithumb_test.html", {"request": request})
+    return templates.TemplateResponse("features/bithumb_test.html", {"request": request})
 
 @app.get("/bithumb-guide")
 async def bithumb_guide_page(request: Request):
     """빗썸 API 가이드 페이지"""
-    return templates.TemplateResponse("bithumb_guide.html", {"request": request})
+    return templates.TemplateResponse("features/bithumb_guide.html", {"request": request})
 
 @app.get("/compliance", response_class=HTMLResponse)
 async def bithumb_compliance_page(request: Request):
-    return templates.TemplateResponse("compliance.html", {"request": request})
+    return templates.TemplateResponse("features/compliance.html", {"request": request})
 
 @app.get("/privacy-policy", response_class=HTMLResponse)
 async def privacy_policy_page(request: Request):
     """개인정보처리방침 페이지"""
-    return templates.TemplateResponse("privacy_policy.html", {"request": request})
+    return templates.TemplateResponse("legal/privacy_policy.html", {"request": request})
 
 @app.get("/terms-of-service", response_class=HTMLResponse)
 async def terms_of_service_page(request: Request):
     """이용약관 페이지"""
-    return templates.TemplateResponse("terms_of_service.html", {"request": request})
+    return templates.TemplateResponse("legal/terms_of_service.html", {"request": request})
 
 @app.get("/contact", response_class=HTMLResponse)
 async def contact_page(request: Request):
     """문의사항 페이지"""
-    return templates.TemplateResponse("contact.html", {"request": request})
+    return templates.TemplateResponse("content/contact.html", {"request": request})
+
+@app.get("/guide", response_class=HTMLResponse)
+async def guide_page(request: Request):
+    """사이트 이용가이드 페이지"""
+    return templates.TemplateResponse("content/guide.html", {"request": request})
+
+@app.get("/about", response_class=HTMLResponse)
+async def about_page(request: Request):
+    """서비스 소개 페이지"""
+    return templates.TemplateResponse("content/about.html", {"request": request})
+
+@app.get("/blog", response_class=HTMLResponse)
+async def blog_page(request: Request):
+    """블로그 목록 페이지"""
+    return templates.TemplateResponse("content/blog.html", {"request": request})
+
+# 블로그 포스트 데이터
+BLOG_POSTS = {
+    "blockchain-basics": {
+        "title": "블록체인이란 무엇인가? 초보자를 위한 완벽 가이드",
+        "category": "기초 가이드",
+        "date": "2026년 1월",
+        "read_time": "5분 읽기",
+        "excerpt": "블록체인의 기본 개념부터 작동 원리까지, 초보자도 쉽게 이해할 수 있도록 설명합니다.",
+        "content": """
+        <h2>블록체인이란?</h2>
+        <p>블록체인(Blockchain)은 분산 원장 기술(Distributed Ledger Technology, DLT)의 한 형태로, 
+        거래 기록을 여러 컴퓨터에 분산 저장하여 중앙 관리자 없이도 안전하게 데이터를 관리할 수 있는 기술입니다.</p>
+        
+        <h3>블록체인의 핵심 개념</h3>
+        <ul>
+            <li><strong>분산 저장:</strong> 데이터가 여러 노드(컴퓨터)에 복사되어 저장됩니다.</li>
+            <li><strong>불변성:</strong> 한 번 기록된 데이터는 수정하거나 삭제하기 어렵습니다.</li>
+            <li><strong>투명성:</strong> 모든 거래 내역이 공개적으로 확인 가능합니다.</li>
+            <li><strong>합의 메커니즘:</strong> 네트워크 참여자들이 거래의 유효성을 검증합니다.</li>
+        </ul>
+        
+        <h2>블록체인은 어떻게 작동하나요?</h2>
+        <p>블록체인은 이름 그대로 "블록"들이 "체인"처럼 연결된 구조입니다. 각 블록에는 다음과 같은 정보가 포함됩니다:</p>
+        
+        <ol>
+            <li><strong>거래 데이터:</strong> 실제 거래 내역</li>
+            <li><strong>이전 블록 해시:</strong> 이전 블록을 가리키는 고유 식별자</li>
+            <li><strong>타임스탬프:</strong> 블록이 생성된 시간</li>
+            <li><strong>논스(Nonce):</strong> 암호화 퍼즐을 푸는 데 사용되는 숫자</li>
+        </ol>
+        
+        <h2>블록체인의 장점</h2>
+        <ul>
+            <li><strong>보안성:</strong> 암호화 기술로 데이터를 보호합니다.</li>
+            <li><strong>투명성:</strong> 모든 거래가 공개적으로 기록됩니다.</li>
+            <li><strong>탈중앙화:</strong> 중앙 관리자 없이 네트워크가 운영됩니다.</li>
+            <li><strong>불변성:</strong> 기록된 데이터를 변경하기 어렵습니다.</li>
+        </ul>
+        
+        <h2>블록체인의 활용 분야</h2>
+        <p>블록체인 기술은 다양한 분야에서 활용되고 있습니다:</p>
+        <ul>
+            <li>암호화폐 (Bitcoin, Ethereum 등)</li>
+            <li>스마트 컨트랙트</li>
+            <li>공급망 관리</li>
+            <li>디지털 신원 인증</li>
+            <li>투표 시스템</li>
+        </ul>
+        
+        <p>블록체인은 단순히 암호화폐를 위한 기술이 아니라, 신뢰가 필요한 모든 분야에서 활용될 수 있는 혁신적인 기술입니다.</p>
+        """
+    },
+    "transaction-guide": {
+        "title": "블록체인 트랜잭션 완전 정복: 해시부터 확인까지",
+        "category": "트랜잭션",
+        "date": "2026년 1월",
+        "read_time": "7분 읽기",
+        "excerpt": "트랜잭션이 어떻게 생성되고 전파되며 블록에 포함되는지 자세히 알아봅니다.",
+        "content": """
+        <h2>트랜잭션이란?</h2>
+        <p>블록체인에서 트랜잭션(Transaction)은 암호화폐나 데이터를 한 주소에서 다른 주소로 전송하는 작업을 의미합니다. 
+        모든 트랜잭션은 네트워크에 브로드캐스트되고, 검증된 후 블록에 포함됩니다.</p>
+        
+        <h2>트랜잭션의 구조</h2>
+        <p>일반적인 트랜잭션은 다음 정보를 포함합니다:</p>
+        <ul>
+            <li><strong>입력(Input):</strong> 송신자의 주소와 이전 거래에서 받은 금액</li>
+            <li><strong>출력(Output):</strong> 수신자의 주소와 전송할 금액</li>
+            <li><strong>수수료(Fee):</strong> 네트워크에 지불하는 수수료</li>
+            <li><strong>서명(Signature):</strong> 송신자의 디지털 서명</li>
+        </ul>
+        
+        <h2>트랜잭션 해시(TXID)</h2>
+        <p>트랜잭션 해시는 트랜잭션의 고유 식별자입니다. 모든 트랜잭션 데이터를 해시 함수에 통과시켜 생성되며, 
+        다음과 같은 특징이 있습니다:</p>
+        <ul>
+            <li>트랜잭션 내용이 조금이라도 바뀌면 해시값이 완전히 달라집니다.</li>
+            <li>고유한 식별자로 사용되어 트랜잭션을 추적하는 데 사용됩니다.</li>
+            <li>일반적으로 64자리 16진수 문자열로 표현됩니다.</li>
+        </ul>
+        
+        <h2>트랜잭션 생명주기</h2>
+        <ol>
+            <li><strong>생성:</strong> 사용자가 지갑을 통해 트랜잭션을 생성합니다.</li>
+            <li><strong>서명:</strong> 개인키로 트랜잭션에 서명합니다.</li>
+            <li><strong>전파:</strong> 네트워크의 노드들에게 브로드캐스트됩니다.</li>
+            <li><strong>검증:</strong> 노드들이 트랜잭션의 유효성을 검증합니다.</li>
+            <li><strong>포함:</strong> 검증된 트랜잭션이 블록에 포함됩니다.</li>
+            <li><strong>확인:</strong> 블록이 체인에 추가되면 트랜잭션이 확인됩니다.</li>
+        </ol>
+        
+        <h2>트랜잭션 수수료</h2>
+        <p>트랜잭션 수수료는 네트워크에 트랜잭션을 처리해주는 대가로 지불하는 금액입니다. 
+        수수료는 다음과 같은 요인에 따라 결정됩니다:</p>
+        <ul>
+            <li>네트워크 혼잡도</li>
+            <li>트랜잭션 크기</li>
+            <li>우선순위 설정</li>
+        </ul>
+        
+        <h2>트랜잭션 확인 횟수</h2>
+        <p>트랜잭션이 블록에 포함된 후, 그 위에 새로운 블록이 추가될 때마다 확인 횟수가 증가합니다. 
+        일반적으로 6개의 확인(Confirmation)이 있으면 트랜잭션이 안전하게 처리된 것으로 간주됩니다.</p>
+        
+        <h2>트랜잭션 조회 방법</h2>
+        <p>Multi Chain Explorer를 사용하면 트랜잭션 해시만으로 여러 블록체인 네트워크에서 
+        동시에 트랜잭션을 검색할 수 있습니다. 트랜잭션 해시를 입력하면 자동으로 
+        모든 지원 네트워크에서 검색하여 결과를 보여줍니다.</p>
+        """
+    },
+    "smart-contracts": {
+        "title": "스마트 컨트랙트 입문: 자동화된 계약의 세계",
+        "category": "스마트 컨트랙트",
+        "date": "2026년 1월",
+        "read_time": "6분 읽기",
+        "excerpt": "스마트 컨트랙트의 개념과 작동 원리, 실제 사용 사례를 소개합니다.",
+        "content": """
+        <h2>스마트 컨트랙트란?</h2>
+        <p>스마트 컨트랙트(Smart Contract)는 블록체인 위에서 자동으로 실행되는 프로그램입니다. 
+        특정 조건이 충족되면 자동으로 계약 조건을 이행하는 디지털 계약서라고 할 수 있습니다.</p>
+        
+        <h2>스마트 컨트랙트의 특징</h2>
+        <ul>
+            <li><strong>자동 실행:</strong> 조건이 충족되면 자동으로 실행됩니다.</li>
+            <li><strong>불변성:</strong> 배포 후 코드를 변경할 수 없습니다.</li>
+            <li><strong>투명성:</strong> 모든 코드와 실행 결과가 공개됩니다.</li>
+            <li><strong>신뢰성:</strong> 중앙 관리자 없이 자동으로 실행됩니다.</li>
+        </ul>
+        
+        <h2>스마트 컨트랙트 작동 원리</h2>
+        <p>스마트 컨트랙트는 다음과 같이 작동합니다:</p>
+        <ol>
+            <li>개발자가 스마트 컨트랙트 코드를 작성합니다.</li>
+            <li>코드를 블록체인에 배포(Deploy)합니다.</li>
+            <li>사용자가 컨트랙트와 상호작용합니다.</li>
+            <li>조건이 충족되면 자동으로 실행됩니다.</li>
+        </ol>
+        
+        <h2>주요 사용 사례</h2>
+        <ul>
+            <li><strong>DeFi:</strong> 탈중앙화 금융 서비스 (대출, 거래 등)</li>
+            <li><strong>NFT:</strong> 대체 불가능한 토큰 발행 및 거래</li>
+            <li><strong>토큰 발행:</strong> ERC-20, BEP-20 등 표준 토큰 발행</li>
+            <li><strong>투표 시스템:</strong> 탈중앙화 자율 조직(DAO)의 투표</li>
+        </ul>
+        
+        <h2>스마트 컨트랙트 플랫폼</h2>
+        <p>가장 널리 사용되는 스마트 컨트랙트 플랫폼은 Ethereum입니다. 
+        그 외에도 BNB Smart Chain, Polygon, Solana 등 다양한 플랫폼이 있습니다.</p>
+        """
+    },
+    "multi-chain": {
+        "title": "멀티체인 생태계: 다양한 블록체인 네트워크 이해하기",
+        "category": "멀티체인",
+        "date": "2026년 1월",
+        "read_time": "8분 읽기",
+        "excerpt": "Bitcoin, Ethereum, BNB Smart Chain 등 다양한 블록체인 네트워크의 특징과 차이점을 비교 분석합니다.",
+        "content": """
+        <h2>멀티체인 생태계란?</h2>
+        <p>현재 수백 개의 블록체인 네트워크가 존재하며, 각각 고유한 특징과 목적을 가지고 있습니다. 
+        멀티체인 생태계는 이러한 다양한 블록체인 네트워크들이 공존하는 환경을 의미합니다.</p>
+        
+        <h2>주요 블록체인 네트워크</h2>
+        
+        <h3>Bitcoin (BTC)</h3>
+        <ul>
+            <li>세계 최초의 블록체인 네트워크</li>
+            <li>디지털 금으로 불리는 가치 저장 수단</li>
+            <li>작업 증명(PoW) 합의 알고리즘 사용</li>
+            <li>스마트 컨트랙트 기능 제한적</li>
+        </ul>
+        
+        <h3>Ethereum (ETH)</h3>
+        <ul>
+            <li>스마트 컨트랙트 플랫폼의 선구자</li>
+            <li>DeFi, NFT 생태계의 중심</li>
+            <li>지분 증명(PoS)으로 전환 완료</li>
+            <li>가장 큰 개발자 커뮤니티 보유</li>
+        </ul>
+        
+        <h3>BNB Smart Chain</h3>
+        <ul>
+            <li>바이낸스가 개발한 이더리움 호환 체인</li>
+            <li>낮은 수수료와 빠른 처리 속도</li>
+            <li>이더리움 도구와 호환 가능</li>
+            <li>바이낸스 생태계와 긴밀한 연동</li>
+        </ul>
+        
+        <h3>Polygon</h3>
+        <ul>
+            <li>이더리움 레이어 2 솔루션</li>
+            <li>이더리움의 확장성 문제 해결</li>
+            <li>낮은 수수료와 빠른 거래</li>
+            <li>이더리움과의 상호 운용성</li>
+        </ul>
+        
+        <h2>네트워크 선택 기준</h2>
+        <p>프로젝트나 사용 목적에 따라 적합한 네트워크를 선택해야 합니다:</p>
+        <ul>
+            <li><strong>수수료:</strong> 거래 수수료가 낮은 네트워크</li>
+            <li><strong>속도:</strong> 빠른 거래 처리 속도</li>
+            <li><strong>생태계:</strong> 활발한 개발자 커뮤니티</li>
+            <li><strong>보안:</strong> 검증된 보안성</li>
+        </ul>
+        
+        <h2>크로스체인 기술</h2>
+        <p>서로 다른 블록체인 네트워크 간 자산 이동을 가능하게 하는 기술입니다. 
+        브릿지(Bridge)를 통해 한 네트워크의 자산을 다른 네트워크로 전송할 수 있습니다.</p>
+        """
+    },
+    "defi-explained": {
+        "title": "DeFi란? 탈중앙화 금융의 모든 것",
+        "category": "DeFi",
+        "date": "2026년 1월",
+        "read_time": "9분 읽기",
+        "excerpt": "탈중앙화 금융(DeFi)의 개념과 주요 프로토콜, 스테이킹, 유동성 공급 등을 소개합니다.",
+        "content": """
+        <h2>DeFi란?</h2>
+        <p>DeFi(Decentralized Finance, 탈중앙화 금융)는 블록체인 기술을 활용하여 
+        전통적인 금융 서비스를 탈중앙화된 방식으로 제공하는 생태계입니다. 
+        중앙 기관 없이 스마트 컨트랙트를 통해 금융 서비스를 제공합니다.</p>
+        
+        <h2>DeFi의 핵심 원칙</h2>
+        <ul>
+            <li><strong>탈중앙화:</strong> 중앙 관리자 없이 운영</li>
+            <li><strong>투명성:</strong> 모든 거래가 공개적으로 기록됨</li>
+            <li><strong>접근성:</strong> 누구나 참여 가능</li>
+            <li><strong>상호 운용성:</strong> 다양한 프로토콜 간 연동</li>
+        </ul>
+        
+        <h2>주요 DeFi 서비스</h2>
+        
+        <h3>1. 탈중앙화 거래소 (DEX)</h3>
+        <p>중앙 거래소 없이 토큰을 거래할 수 있는 플랫폼입니다. 
+        Uniswap, PancakeSwap 등이 대표적입니다.</p>
+        
+        <h3>2. 대출 및 차입</h3>
+        <p>담보를 제공하고 대출을 받거나, 자산을 예치하여 이자를 받을 수 있습니다. 
+        Aave, Compound 등이 유명합니다.</p>
+        
+        <h3>3. 유동성 공급 (Liquidity Providing)</h3>
+        <p>거래 쌍에 유동성을 공급하고 수수료를 받는 방식입니다. 
+        유동성 공급자는 LP 토큰을 받게 됩니다.</p>
+        
+        <h3>4. 스테이킹 (Staking)</h3>
+        <p>암호화폐를 네트워크에 예치하여 블록 검증에 참여하고 보상을 받는 방식입니다.</p>
+        
+        <h2>DeFi의 장점</h2>
+        <ul>
+            <li>24/7 서비스 제공</li>
+            <li>낮은 진입 장벽</li>
+            <li>투명한 거래 기록</li>
+            <li>글로벌 접근성</li>
+        </ul>
+        
+        <h2>DeFi의 위험</h2>
+        <ul>
+            <li>스마트 컨트랙트 취약점</li>
+            <li>가격 변동성</li>
+            <li>규제 불확실성</li>
+            <li>유동성 위험</li>
+        </ul>
+        
+        <h2>DeFi 사용 시 주의사항</h2>
+        <p>DeFi를 사용할 때는 다음 사항을 주의해야 합니다:</p>
+        <ul>
+            <li>프로젝트의 보안 감사 여부 확인</li>
+            <li>TVL(Total Value Locked) 확인</li>
+            <li>스마트 컨트랙트 코드 검토</li>
+            <li>소액으로 시작하여 테스트</li>
+        </ul>
+        """
+    },
+    "blockchain-security": {
+        "title": "블록체인 보안 가이드: 안전한 거래를 위한 필수 지식",
+        "category": "보안",
+        "date": "2026년 1월",
+        "read_time": "6분 읽기",
+        "excerpt": "블록체인 거래 시 주의해야 할 보안 사항, 지갑 관리 방법, 피싱 방지 팁을 제공합니다.",
+        "content": """
+        <h2>블록체인 보안의 중요성</h2>
+        <p>블록체인 거래는 되돌릴 수 없기 때문에, 보안에 대한 이해와 주의가 매우 중요합니다. 
+        한 번의 실수로 모든 자산을 잃을 수 있으므로 항상 주의해야 합니다.</p>
+        
+        <h2>지갑 보안</h2>
+        
+        <h3>개인키 관리</h3>
+        <ul>
+            <li>개인키는 절대 공유하지 마세요</li>
+            <li>개인키를 온라인에 저장하지 마세요</li>
+            <li>하드웨어 지갑 사용을 권장합니다</li>
+            <li>백업을 안전한 곳에 보관하세요</li>
+        </ul>
+        
+        <h3>지갑 종류</h3>
+        <ul>
+            <li><strong>하드웨어 지갑:</strong> 가장 안전한 방식 (Ledger, Trezor)</li>
+            <li><strong>소프트웨어 지갑:</strong> 편리하지만 보안에 주의 필요</li>
+            <li><strong>거래소 지갑:</strong> 편리하지만 자산을 통제하지 못함</li>
+        </ul>
+        
+        <h2>피싱 및 스캠 방지</h2>
+        <ul>
+            <li>의심스러운 링크를 클릭하지 마세요</li>
+            <li>공식 웹사이트 URL을 직접 입력하세요</li>
+            <li>개인키나 시드 구문을 요구하는 사이트는 피하세요</li>
+            <li>너무 좋은 조건의 제안은 의심하세요</li>
+        </ul>
+        
+        <h2>트랜잭션 확인</h2>
+        <p>트랜잭션을 전송하기 전에 다음을 확인하세요:</p>
+        <ul>
+            <li>수신 주소가 정확한지 확인</li>
+            <li>전송 금액 확인</li>
+            <li>네트워크 선택 확인 (이더리움, BSC 등)</li>
+            <li>수수료 확인</li>
+        </ul>
+        
+        <h2>스마트 컨트랙트 상호작용</h2>
+        <ul>
+            <li>신뢰할 수 있는 프로젝트만 사용</li>
+            <li>스마트 컨트랙트 권한 확인</li>
+            <li>무제한 승인은 피하세요</li>
+            <li>소액으로 먼저 테스트</li>
+        </ul>
+        
+        <h2>2단계 인증 (2FA)</h2>
+        <p>거래소나 서비스를 사용할 때는 반드시 2단계 인증을 활성화하세요. 
+        SMS보다는 Google Authenticator나 Authy 같은 앱을 사용하는 것이 더 안전합니다.</p>
+        
+        <h2>정기적인 보안 점검</h2>
+        <ul>
+            <li>지갑 소프트웨어 업데이트</li>
+            <li>의심스러운 활동 모니터링</li>
+            <li>백업 확인</li>
+            <li>보안 뉴스 확인</li>
+        </ul>
+        """
+    },
+    "layer2-solutions": {
+        "title": "레이어 2 솔루션: 블록체인 확장성 문제 해결책",
+        "category": "레이어 2",
+        "date": "2026년 1월",
+        "read_time": "7분 읽기",
+        "excerpt": "Polygon, Arbitrum, Optimism 등 레이어 2 솔루션의 작동 원리와 확장성 문제 해결 방법을 설명합니다.",
+        "content": """
+        <h2>블록체인 확장성 문제</h2>
+        <p>이더리움과 같은 메인넷은 트랜잭션 처리 속도가 느리고 수수료가 높은 문제가 있습니다. 
+        이를 해결하기 위해 레이어 2 솔루션이 개발되었습니다.</p>
+        
+        <h2>레이어 2란?</h2>
+        <p>레이어 2는 메인 블록체인(레이어 1) 위에 구축된 확장 솔루션입니다. 
+        메인넷의 보안을 유지하면서 처리 속도를 높이고 수수료를 낮춥니다.</p>
+        
+        <h2>주요 레이어 2 솔루션</h2>
+        
+        <h3>Polygon</h3>
+        <ul>
+            <li>이더리움 호환 사이드체인</li>
+            <li>낮은 수수료와 빠른 거래</li>
+            <li>다양한 DeFi 프로토콜 지원</li>
+        </ul>
+        
+        <h3>Arbitrum</h3>
+        <ul>
+            <li>옵티미스틱 롤업 방식</li>
+            <li>이더리움 가상 머신(EVM) 완전 호환</li>
+            <li>낮은 수수료</li>
+        </ul>
+        
+        <h3>Optimism</h3>
+        <ul>
+            <li>옵티미스틱 롤업 방식</li>
+            <li>이더리움과 유사한 보안 모델</li>
+            <li>빠른 거래 처리</li>
+        </ul>
+        
+        <h3>Base</h3>
+        <ul>
+            <li>코인베이스가 개발한 레이어 2</li>
+            <li>이더리움 기반</li>
+            <li>낮은 수수료</li>
+        </ul>
+        
+        <h2>레이어 2 작동 방식</h2>
+        <ol>
+            <li>사용자가 레이어 2로 자산을 전송 (브릿지)</li>
+            <li>레이어 2에서 거래 실행</li>
+            <li>거래 결과를 레이어 1에 기록</li>
+            <li>필요시 레이어 1로 자산 회수</li>
+        </ol>
+        
+        <h2>레이어 2의 장점</h2>
+        <ul>
+            <li>빠른 거래 처리 속도</li>
+            <li>낮은 수수료</li>
+            <li>메인넷의 보안 유지</li>
+            <li>이더리움 생태계와의 호환성</li>
+        </ul>
+        
+        <h2>레이어 2 사용 시 주의사항</h2>
+        <ul>
+            <li>브릿지 보안 확인</li>
+            <li>네트워크 선택 확인</li>
+            <li>유동성 확인</li>
+        </ul>
+        """
+    },
+    "nft-basics": {
+        "title": "NFT 완전 가이드: 대체 불가능한 토큰의 모든 것",
+        "category": "NFT",
+        "date": "2026년 1월",
+        "read_time": "8분 읽기",
+        "excerpt": "NFT의 개념과 작동 원리, 생성 및 거래 방법, 다양한 NFT 프로젝트를 소개합니다.",
+        "content": """
+        <h2>NFT란?</h2>
+        <p>NFT(Non-Fungible Token, 대체 불가능한 토큰)는 고유한 디지털 자산을 나타내는 토큰입니다. 
+        각 NFT는 고유한 식별자를 가지고 있어 다른 토큰과 교환할 수 없습니다.</p>
+        
+        <h2>NFT의 특징</h2>
+        <ul>
+            <li><strong>고유성:</strong> 각 NFT는 고유한 특성을 가집니다</li>
+            <li><strong>불가분성:</strong> NFT를 나눌 수 없습니다</li>
+            <li><strong>소유권 증명:</strong> 블록체인에 소유권이 기록됩니다</li>
+            <li><strong>전송 가능:</strong> 다른 주소로 전송할 수 있습니다</li>
+        </ul>
+        
+        <h2>NFT의 활용 분야</h2>
+        <ul>
+            <li><strong>디지털 아트:</strong> 디지털 작품의 소유권 증명</li>
+            <li><strong>게임 아이템:</strong> 게임 내 아이템의 소유권</li>
+            <li><strong>수집품:</strong> 디지털 수집품</li>
+            <li><strong>도메인 이름:</strong> ENS, Unstoppable Domains 등</li>
+            <li><strong>음악 및 미디어:</strong> 음악, 영상 콘텐츠</li>
+        </ul>
+        
+        <h2>NFT 표준</h2>
+        <ul>
+            <li><strong>ERC-721:</strong> 이더리움 NFT 표준</li>
+            <li><strong>ERC-1155:</strong> 다중 토큰 표준</li>
+            <li><strong>BEP-721:</strong> BNB Smart Chain NFT 표준</li>
+        </ul>
+        
+        <h2>NFT 마켓플레이스</h2>
+        <p>NFT를 구매하거나 판매할 수 있는 주요 플랫폼:</p>
+        <ul>
+            <li>OpenSea (이더리움, Polygon 등)</li>
+            <li>Blur (이더리움)</li>
+            <li>Magic Eden (Solana)</li>
+        </ul>
+        
+        <h2>NFT 생성 방법</h2>
+        <ol>
+            <li>디지털 파일 준비 (이미지, 음악 등)</li>
+            <li>메타데이터 작성 (이름, 설명 등)</li>
+            <li>NFT 마켓플레이스에서 민팅</li>
+            <li>가스비 지불 및 생성 완료</li>
+        </ol>
+        
+        <h2>NFT 구매 시 주의사항</h2>
+        <ul>
+            <li>프로젝트의 신뢰성 확인</li>
+            <li>가격 조사</li>
+            <li>지갑 보안</li>
+            <li>가스비 확인</li>
+        </ul>
+        """
+    }
+}
+
+@app.get("/blog/{post_slug}", response_class=HTMLResponse)
+async def blog_post_page(request: Request, post_slug: str):
+    """블로그 포스트 페이지"""
+    if post_slug not in BLOG_POSTS:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    post = BLOG_POSTS[post_slug].copy()
+    
+    # 이전/다음 포스트 찾기
+    post_keys = list(BLOG_POSTS.keys())
+    current_index = post_keys.index(post_slug) if post_slug in post_keys else -1
+    
+    if current_index > 0:
+        prev_key = post_keys[current_index - 1]
+        post["prev"] = {
+            "url": f"/blog/{prev_key}",
+            "title": BLOG_POSTS[prev_key]["title"]
+        }
+    
+    if current_index < len(post_keys) - 1:
+        next_key = post_keys[current_index + 1]
+        post["next"] = {
+            "url": f"/blog/{next_key}",
+            "title": BLOG_POSTS[next_key]["title"]
+        }
+    
+    return templates.TemplateResponse("content/blog_post.html", {"request": request, "post": post})
 
 @app.get("/admin/login", response_class=HTMLResponse)
 async def admin_login_page(request: Request):
@@ -340,7 +874,7 @@ async def admin_login_page(request: Request):
         return RedirectResponse(url="/admin/inquiries", status_code=303)
     
     redirect_url = request.query_params.get("redirect", "/admin/inquiries")
-    return templates.TemplateResponse("admin_login.html", {"request": request, "redirect_url": redirect_url})
+    return templates.TemplateResponse("admin/admin_login.html", {"request": request, "redirect_url": redirect_url})
 
 @app.post("/admin/login")
 async def admin_login(request: Request):
@@ -390,7 +924,7 @@ async def admin_inquiries_page(request: Request):
     if redirect:
         return redirect
     
-    return templates.TemplateResponse("admin_inquiries.html", {"request": request})
+    return templates.TemplateResponse("admin/admin_inquiries.html", {"request": request})
 
 @app.post("/api/contact")
 async def submit_contact(request: Request):
@@ -856,7 +1390,7 @@ async def handle_response(response, url, headers, body):
 @app.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request):
     """챗봇 페이지"""
-    return templates.TemplateResponse("chatbot.html", {"request": request})
+    return templates.TemplateResponse("pages/chatbot.html", {"request": request})
 
 @app.post("/api/chat")
 @traceable(name="chat_endpoint", run_type="chain")
@@ -1430,11 +1964,26 @@ async def crawl_website(request: Request):
         )
 
 if __name__ == "__main__":
+    # 환경 정보 출력
+    logger.info("="*60)
+    logger.info(f"환경: {ENVIRONMENT.upper()}")
+    logger.info(f"디버그 모드: {DEBUG_MODE}")
+    logger.info(f"자동 리로드: {RELOAD_ENABLED}")
+    logger.info("="*60)
+    
+    # SSL 설정 (참고: 프로덕션 환경에서는 nginx가 SSL을 처리하므로 이 설정은 사용되지 않음)
+    # 직접 SSL을 사용하는 경우에만 환경 변수 SSL_KEY_PATH, SSL_CERT_PATH를 설정하세요
     ssl_keyfile = os.getenv("SSL_KEY_PATH")
     ssl_certfile = os.getenv("SSL_CERT_PATH")
     
+    # SSL 설정이 있으면 경고 (nginx 사용 시 불필요)
+    if ssl_keyfile and ssl_certfile:
+        logger.warning("⚠️ SSL_KEY_PATH와 SSL_CERT_PATH가 설정되어 있습니다.")
+        logger.warning("   프로덕션 환경에서는 nginx가 SSL을 처리하므로 이 설정은 사용되지 않습니다.")
+        logger.warning("   직접 SSL을 사용하는 경우에만 이 설정을 사용하세요.")
+    
     # uvicorn 로그 설정
-    log_level_uvicorn = os.getenv("LOG_LEVEL", "info").lower()
+    log_level_uvicorn = os.getenv("LOG_LEVEL", default_log_level.lower()).lower()
     
     # uvicorn 시작 전에 로깅 재확인 및 강제 적용
     logger.info("서버 시작 준비 중...")
@@ -1503,27 +2052,37 @@ if __name__ == "__main__":
         },
     }
     
+    # 호스트 설정 (개발 환경에서는 localhost, 프로덕션에서는 0.0.0.0)
+    host = "127.0.0.1" if DEBUG_MODE else "0.0.0.0"
+    
+    # SSL 설정이 있고 직접 SSL을 사용하는 경우에만 SSL 모드로 시작
+    # 참고: 프로덕션 환경에서는 nginx가 SSL을 처리하므로 이 설정은 사용되지 않음
     if ssl_keyfile and ssl_certfile:
         logger.info("SSL 모드로 서버 시작 (포트 443)")
+        logger.warning("⚠️ 직접 SSL을 사용합니다. nginx를 사용하는 경우 이 설정을 비활성화하세요.")
         uvicorn.run(
             "main:app",
-            host="0.0.0.0",
+            host=host,
             port=443,
             ssl_keyfile=ssl_keyfile,
             ssl_certfile=ssl_certfile,
             log_level=log_level_uvicorn,
-            log_config=uvicorn_log_config,  # 우리 로깅 설정 사용
+            log_config=uvicorn_log_config,
             use_colors=False,
-            access_log=True
+            access_log=True,
+            reload=RELOAD_ENABLED
         )
     else:
-        logger.info("일반 모드로 서버 시작 (포트 8000)")
+        logger.info(f"일반 모드로 서버 시작 (포트 8000, 호스트: {host})")
+        if DEBUG_MODE:
+            logger.info("개발 환경: 자동 리로드 활성화")
         uvicorn.run(
             "main:app",
-            host="0.0.0.0",
+            host=host,
             port=8000,
             log_level=log_level_uvicorn,
-            log_config=uvicorn_log_config,  # 우리 로깅 설정 사용
+            log_config=uvicorn_log_config,
             use_colors=False,
-            access_log=True
+            access_log=True,
+            reload=RELOAD_ENABLED
         )

@@ -41,8 +41,20 @@ class VectorStore:
                 logger.error("MONGODB_URI 환경변수가 설정되지 않았습니다.")
                 return False
             
-            self.client = AsyncIOMotorClient(connection_string, serverSelectionTimeoutMS=5000)
-            await self.client.admin.command('ping')
+            self.client = AsyncIOMotorClient(
+                connection_string,
+                serverSelectionTimeoutMS=5000,  # 5초 타임아웃
+                connectTimeoutMS=5000,  # 연결 타임아웃 5초
+                socketTimeoutMS=5000,  # 소켓 타임아웃 5초
+                maxPoolSize=10,  # 최대 연결 풀 크기
+                minPoolSize=1  # 최소 연결 풀 크기
+            )
+            
+            # 연결 테스트 (타임아웃 설정)
+            await asyncio.wait_for(
+                self.client.admin.command('ping'),
+                timeout=5.0  # 5초 타임아웃
+            )
             
             self.db = self.client[database_name]
             self.collection = self.db["knowledge_base"]
@@ -50,8 +62,17 @@ class VectorStore:
             logger.info("MongoDB Atlas 벡터 DB 연결 성공")
             return True
             
+        except asyncio.TimeoutError:
+            logger.warning(f"MongoDB 벡터 DB 연결 타임아웃 (5초)")
+            return False
+        except asyncio.CancelledError:
+            logger.warning(f"MongoDB 벡터 DB 연결이 취소되었습니다")
+            return False
+        except ConnectionFailure as e:
+            logger.error(f"MongoDB 벡터 DB 연결 실패: {e}")
+            return False
         except Exception as e:
-            logger.error(f"MongoDB 연결 실패: {e}")
+            logger.error(f"MongoDB 벡터 DB 연결 오류: {e}")
             return False
     
     async def disconnect(self):

@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}블록체인 블로그{% endblock %}
+
+{% block meta_description %}블록체인과 암호화폐에 대한 최신 정보, 가이드, 튜토리얼을 제공합니다. 트랜잭션, 스마트 컨트랙트, DeFi 등 다양한 주제를 다룹니다.{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="/static/css/main.css">
+<style>
+.blog-page {
+    padding: calc(var(--space-3xl) + 60px) var(--space-lg) var(--space-3xl);
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.blog-hero {
+    text-align: center;
+    margin-bottom: var(--space-3xl);
+    padding: var(--space-3xl) 0;
+    background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--bg-primary) 100%);
+    border-radius: var(--radius-lg);
+}
+
+.blog-title {
+    font-size: var(--font-size-4xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.blog-description {
+    font-size: var(--font-size-lg);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.blog-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-xl);
+    margin-top: var(--space-2xl);
+}
+
+.blog-card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-base);
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    color: inherit;
+}
+
+.blog-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-xl);
+    border-color: var(--color-primary);
+}
+
+.blog-card-image {
+    width: 100%;
+    height: 200px;
+    background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-primary-100) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4rem;
+}
+
+.blog-card-content {
+    padding: var(--space-lg);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.blog-card-category {
+    display: inline-block;
+    padding: var(--space-xs) var(--space-md);
+    background: var(--color-primary-50);
+    color: var(--color-primary);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--space-md);
+    width: fit-content;
+}
+
+.blog-card-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+    line-height: var(--line-height-tight);
+}
+
+.blog-card-excerpt {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    margin-bottom: var(--space-md);
+    flex: 1;
+}
+
+.blog-card-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-color-light);
+}
+
+.blog-card-date {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+@media (max-width: 768px) {
+    .blog-page {
+        padding: calc(var(--space-2xl) + 60px) var(--space-md) var(--space-2xl);
+    }
+    
+    .blog-title {
+        font-size: var(--font-size-3xl);
+    }
+    
+    .blog-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="blog-page">
+    <div class="blog-hero">
+        <h1 class="blog-title">블록체인 블로그</h1>
+        <p class="blog-description">
+            블록체인과 암호화폐에 대한 최신 정보, 가이드, 튜토리얼을 제공합니다.
+        </p>
+    </div>
+
+    <div class="blog-grid">
+        <a href="/blog/blockchain-basics" class="blog-card">
+            <div class="blog-card-image">📚</div>
+            <div class="blog-card-content">
+                <span class="blog-card-category">기초 가이드</span>
+                <h2 class="blog-card-title">블록체인이란 무엇인가? 초보자를 위한 완벽 가이드</h2>
+                <p class="blog-card-excerpt">
+                    블록체인의 기본 개념부터 작동 원리까지, 초보자도 쉽게 이해할 수 있도록 설명합니다. 
+                    분산 원장 기술의 핵심을 알아보세요.
+                </p>
+                <div class="blog-card-meta">
+                    <span class="blog-card-date">📅 2026년 1월</span>
+                    <span>⏱️ 5분 읽기</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="/blog/transaction-guide" class="blog-card">
+            <div class="blog-card-image">💸</div>
+            <div class="blog-card-content">
+                <span class="blog-card-category">트랜잭션</span>
+                <h2 class="blog-card-title">블록체인 트랜잭션 완전 정복: 해시부터 확인까지</h2>
+                <p class="blog-card-excerpt">
+                    트랜잭션이 어떻게 생성되고 전파되며 블록에 포함되는지, 
+                    트랜잭션 해시의 의미와 확인 방법을 자세히 알아봅니다.
+                </p>
+                <div class="blog-card-meta">
+                    <span class="blog-card-date">📅 2026년 1월</span>
+                    <span>⏱️ 7분 읽기</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="/blog/smart-contracts" class="blog-card">
+            <div class="blog-card-image">🤖</div>
+            <div class="blog-card-content">
+                <span class="blog-card-category">스마트 컨트랙트</span>
+                <h2 class="blog-card-title">스마트 컨트랙트 입문: 자동화된 계약의 세계</h2>
+                <p class="blog-card-excerpt">
+                    스마트 컨트랙트의 개념과 작동 원리, 실제 사용 사례를 통해 
+                    블록체인 기반 자동화 계약 시스템을 이해합니다.
+                </p>
+                <div class="blog-card-meta">
+                    <span class="blog-card-date">📅 2026년 1월</span>
+                    <span>⏱️ 6분 읽기</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="/blog/multi-chain" class="blog-card">
+            <div class="blog-card-image">🌐</div>
+            <div class="blog-card-content">
+                <span class="blog-card-category">멀티체인</span>
+                <h2 class="blog-card-title">멀티체인 생태계: 다양한 블록체인 네트워크 이해하기</h2>
+                <p class="blog-card-excerpt">
+                    Bitcoin, Ethereum, BNB Smart Chain 등 다양한 블록체인 네트워크의 특징과 차이점, 
+                    각 네트워크의 장단점을 비교 분석합니다.
+                </p>
+                <div class="blog-card-meta">
+                    <span class="blog-card-date">📅 2026년 1월</span>
+                    <span>⏱️ 8분 읽기</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="/blog/defi-explained" class="blog-card">
+            <div class="blog-card-image">🏦</div>
+            <div class="blog-card-content">
+                <span class="blog-card-category">DeFi</span>
+                <h2 class="blog-card-title">DeFi란? 탈중앙화 금융의 모든 것</h2>
+                <p class="blog-card-excerpt">
+                    탈중앙화 금융(DeFi)의 개념과 주요 프로토콜, 스테이킹, 유동성 공급, 
+                    대출 등 다양한 DeFi 서비스를 소개합니다.
+                </p>
+                <div class="blog-card-meta">
+                    <span class="blog-card-date">📅 2026년 1월</span>
+                    <span>⏱️ 9분 읽기</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="/blog/blockchain-security" class="blog-card">
+            <div class="blog-card-image">🔒</div>
+            <div class="blog-card-content">
+                <span class="blog-card-category">보안</span>
+                <h2 class="blog-card-title">블록체인 보안 가이드: 안전한 거래를 위한 필수 지식</h2>
+                <p class="blog-card-excerpt">
+                    블록체인 거래 시 주의해야 할 보안 사항, 지갑 관리 방법, 
+                    피싱 및 스캠 방지 팁을 제공합니다.
+                </p>
+                <div class="blog-card-meta">
+                    <span class="blog-card-date">📅 2026년 1월</span>
+                    <span>⏱️ 6분 읽기</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="/blog/layer2-solutions" class="blog-card">
+            <div class="blog-card-image">⚡</div>
+            <div class="blog-card-content">
+                <span class="blog-card-category">레이어 2</span>
+                <h2 class="blog-card-title">레이어 2 솔루션: 블록체인 확장성 문제 해결책</h2>
+                <p class="blog-card-excerpt">
+                    Polygon, Arbitrum, Optimism 등 레이어 2 솔루션의 작동 원리와 
+                    이들이 블록체인 확장성 문제를 어떻게 해결하는지 설명합니다.
+                </p>
+                <div class="blog-card-meta">
+                    <span class="blog-card-date">📅 2026년 1월</span>
+                    <span>⏱️ 7분 읽기</span>
+                </div>
+            </div>
+        </a>
+
+        <a href="/blog/nft-basics" class="blog-card">
+            <div class="blog-card-image">🖼️</div>
+            <div class="blog-card-content">
+                <span class="blog-card-category">NFT</span>
+                <h2 class="blog-card-title">NFT 완전 가이드: 대체 불가능한 토큰의 모든 것</h2>
+                <p class="blog-card-excerpt">
+                    NFT의 개념과 작동 원리, 생성 및 거래 방법, 
+                    다양한 NFT 프로젝트와 시장 동향을 소개합니다.
+                </p>
+                <div class="blog-card-meta">
+                    <span class="blog-card-date">📅 2026년 1월</span>
+                    <span>⏱️ 8분 읽기</span>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}

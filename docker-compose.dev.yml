@@ -1,0 +1,50 @@
+# 개발 환경용 Docker Compose 오버라이드 파일
+# 사용법: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+version: '3.8'
+
+services:
+  web:
+    build:
+      dockerfile: docker/Dockerfile.dev
+    # 개발 환경에서는 코드 변경 즉시 반영을 위해 볼륨 마운트
+    volumes:
+      - .:/app
+      # node_modules 등은 제외 (성능 최적화)
+      - /app/__pycache__
+      - /app/.venv
+    # 개발 환경 설정
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+      - RELOAD=true
+    # 개발 환경에서는 포트 노출 (디버깅용)
+    ports:
+      - "8000:8000"
+    # 개발 환경에서는 자동 재시작 비활성화 (수동 제어)
+    restart: "no"
+    # 개발 환경에서는 헬스체크 간격 단축
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # 개발 환경에서는 nginx, certbot, wordpress, db 서비스 제외
+  # 필요시 주석 해제하여 사용
+  # nginx:
+  #   profiles:
+  #     - dev-with-nginx
+  # 
+  # certbot:
+  #   profiles:
+  #     - dev-with-ssl
+  # 
+  # wordpress:
+  #   profiles:
+  #     - dev-with-wordpress
+  # 
+  # db:
+  #   profiles:
+  #     - dev-with-db

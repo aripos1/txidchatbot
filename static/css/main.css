@@ -537,6 +537,18 @@ a:hover {
     transform: translateY(0);
 }
 
+/* 동적으로 삽입된 요소는 즉시 표시 (애니메이션 없이) */
+.result-area .fade-in {
+    opacity: 1;
+    transform: translateY(0);
+    transition: none;
+}
+
+/* fade-in-visible이 추가되면 애니메이션 적용 */
+.result-area .fade-in.fade-in-visible {
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
 /* Print Styles */
 @media print {
     body {

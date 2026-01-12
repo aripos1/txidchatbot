@@ -21,6 +21,62 @@ def find_solana_system_transfer(instructions_list):
                 }
     return None
 
+def normalize_solana_transaction(res: dict):
+    """Solana 트랜잭션 응답을 정규화하는 함수"""
+    if not isinstance(res.get("result"), dict) or not res.get("result", {}).get("transaction"):
+        return None
+
+    txid = res.get("result", {}).get("transaction", {}).get("signatures", [None])[0]
+    if not txid:
+        return None
+
+    # 기본값 설정
+    from_address = None
+    to_address = None
+    value = None
+
+    # accountKeys에서 from 주소 추출 (첫 번째 계정이 보통 발신자)
+    account_keys = res.get("result", {}).get("transaction", {}).get("message", {}).get("accountKeys", [])
+    if account_keys:
+        from_address = account_keys[0].get("pubkey")
+
+    # 단순 SOL 전송 (System Program) 찾기
+    system_transfer_info = None
+    
+    # instructions와 innerInstructions 모두에서 System Program의 transfer를 찾음
+    all_instruction_groups = [res.get("result", {}).get("transaction", {}).get("message", {}).get("instructions", [])] + \
+                             [inner_inst_set.get("instructions", []) for inner_inst_set in res.get("result", {}).get("meta", {}).get("innerInstructions", [])]
+
+    for instruction_group in all_instruction_groups:
+        for inst in instruction_group:
+            if inst.get("programId") == "11111111111111111111111111111111": # System Program ID
+                parsed_info = inst.get("parsed", {}).get("info", {})
+                if inst.get("parsed", {}).get("type") == "transfer":
+                    system_transfer_info = {
+                        "source": parsed_info.get("source"),
+                        "destination": parsed_info.get("destination"),
+                        "lamports": int(parsed_info.get("lamports", 0))
+                    }
+                    break # 첫 번째 시스템 전송만 사용
+        if system_transfer_info:
+            break
+
+    if system_transfer_info:
+        to_address = system_transfer_info["destination"]
+        value = system_transfer_info["lamports"] / 1e9 # lamports to SOL
+
+    return {
+        "txid": txid,
+        "from": from_address,
+        "to": to_address,
+        "value": value,
+        "blockNumber": res.get("result", {}).get("slot"),
+        "status": "confirmed" if res.get("result") and res.get("result", {}).get("meta", {}).get("err") is None else "failed",
+        "chain": "solana",
+        "explorer": "https://solscan.io/tx/",
+        "symbol": "SOL"
+    }
+
 def get_chain_configs():
     return {
         "bitcoin": {
@@ -84,7 +140,7 @@ def get_chain_configs():
             # 공개 RPC 엔드포인트 사용 (또는 환경 변수로 커스텀 RPC URL 설정 가능)
             "api": lambda txid: os.getenv('ETHEREUM_RPC_URL', 'https://eth.llamarpc.com'),
             "normalize": lambda res: {
-                "txid": res.get("result", {}).get("hash"),
+                "txid": res.get("result", {}).get("hash"),  # 전체 해시 보존
                 "from": res.get("result", {}).get("from"),
                 "to": res.get("result", {}).get("to"),
                 "value": int(res.get("result", {}).get("value", "0x0"), 16) / 1e18 if res.get("result", {}).get("value") is not None else None,
@@ -115,8 +171,13 @@ def get_chain_configs():
         "polygon": {
             "name": "Polygon",
             "symbol": "MATIC",
+            "rpc_mode": True,
+            "rpc_method": "eth_getTransactionByHash",
             "explorer": "https://polygonscan.com/tx/",
-            "api": lambda txid: f"https://api.polygonscan.com/api?module=proxy&action=eth_getTransactionByHash&txhash={txid}&apikey={os.getenv('POLYGON_API_KEY')}",
+            # PolygonScan V1 API가 deprecated되어 RPC 모드로 전환
+            # 공개 RPC 엔드포인트 사용 (또는 환경 변수로 커스텀 RPC URL 설정 가능)
+            # 공식 RPC: https://polygon-rpc.com 또는 https://rpc-mainnet.maticvigil.com
+            "api": lambda txid: os.getenv('POLYGON_RPC_URL', 'https://polygon-rpc.com'),
             "normalize": lambda res: {
                 "txid": res.get("result", {}).get("hash"),
                 "from": res.get("result", {}).get("from"),
@@ -228,37 +289,7 @@ def get_chain_configs():
             # 키 없이 사용하려면 "https://api.mainnet-beta.solana.com" 사용 (더 엄격한 사용량 제한)
             "api": lambda txid: os.getenv('SOLANA_RPC_URL', "https://api.mainnet-beta.solana.com"), # txid 인자 사용 안 함
             "rpc_params_lambda": lambda txid: [txid, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
-            "normalize": lambda res: {
-                "txid": res.get("result", {}).get("transaction", {}).get("signatures", [None])[0],
-                "from": res.get("result", {}).get("transaction", {}).get("message", {}).get("accountKeys", [{}])[0].get("pubkey") if res.get("result", {}).get("transaction", {}).get("message", {}).get("accountKeys") else None,
-                "to": next(
-                    (
-                        parsed_info.get("destination")
-                        for instruction_group in [res.get("result", {}).get("transaction", {}).get("message", {}).get("instructions", [])] + [inner_inst_set.get("instructions", []) for inner_inst_set in res.get("result", {}).get("meta", {}).get("innerInstructions", [])]
-                        for inst in instruction_group
-                        if inst.get("programId") == "11111111111111111111111111111111" and \
-                           (parsed_info := inst.get("parsed", {}).get("info", {})) and \
-                           inst.get("parsed", {}).get("type") == "transfer"
-                    ),
-                    None # 단순 SOL 전송을 찾지 못한 경우
-                ),
-                "value": next(
-                    (
-                        parsed_info.get("lamports", 0) / 1e9 # SOL
-                        for instruction_group in [res.get("result", {}).get("transaction", {}).get("message", {}).get("instructions", [])] + [inner_inst_set.get("instructions", []) for inner_inst_set in res.get("result", {}).get("meta", {}).get("innerInstructions", [])]
-                        for inst in instruction_group
-                        if inst.get("programId") == "11111111111111111111111111111111" and \
-                           (parsed_info := inst.get("parsed", {}).get("info", {})) and \
-                           inst.get("parsed", {}).get("type") == "transfer"
-                    ),
-                    None # 단순 SOL 전송을 찾지 못한 경우
-                ),
-                "blockNumber": res.get("result", {}).get("slot"),
-                "status": "confirmed" if res.get("result") and res.get("result", {}).get("meta", {}).get("err") is None else "failed",
-                "chain": "solana",
-                "explorer": "https://solscan.io/tx/",
-                "symbol": "SOL"
-            } if isinstance(res.get("result"), dict) and res.get("result", {}).get("transaction") else None
+            "normalize": lambda res: normalize_solana_transaction(res)
         },
         "ton": {
             "name": "TON",
@@ -365,8 +396,12 @@ def get_chain_configs():
         "blast": {
             "name": "Blast",
             "symbol": "BLAST",
+            "rpc_mode": True,
+            "rpc_method": "eth_getTransactionByHash",
             "explorer": "https://blastscan.io/tx/",
-            "api": lambda txid: f"https://api.blastscan.io/api?module=proxy&action=eth_getTransactionByHash&txhash={txid}&apikey={os.getenv('BLAST_API_KEY')}",
+            # BlastScan V1 API가 deprecated되어 RPC 모드로 전환
+            # 공개 RPC 엔드포인트 사용 (또는 환경 변수로 커스텀 RPC URL 설정 가능)
+            "api": lambda txid: os.getenv('BLAST_RPC_URL', 'https://rpc.ankr.com/blast'),
             "normalize": lambda res: {
                 "txid": res.get("result", {}).get("hash"),
                 "from": res.get("result", {}).get("from"),
