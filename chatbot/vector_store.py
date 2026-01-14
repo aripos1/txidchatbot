@@ -9,10 +9,16 @@ from openai import AsyncOpenAI
 import httpx
 from bs4 import BeautifulSoup
 import hashlib
-from typing import List, Dict
+from typing import List, Dict, Optional
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
+
+# 상대 경로 import를 위해 현재 디렉토리 확인
+try:
+    from .configuration import config
+except ImportError:
+    from chatbot.configuration import config
 
 load_dotenv()
 
@@ -341,6 +347,244 @@ class VectorStore:
         except Exception as e:
             logger.error(f"코사인 유사도 검색 실패: {e}")
             return []
+    
+    async def keyword_search(self, query: str, limit: int = 5) -> List[Dict]:
+        """키워드 검색(BM25/Lexical) - Atlas Search 사용"""
+        if self.collection is None:
+            logger.error("MongoDB가 연결되지 않았습니다.")
+            return []
+        
+        try:
+            # Atlas Search 사용 ($search aggregation stage)
+            pipeline = [
+                {
+                    "$search": {
+                        "index": "text_index",  # Atlas Search 인덱스 이름
+                        "text": {
+                            "query": query,
+                            "path": {
+                                "wildcard": "*"  # 모든 필드 검색 (answer, question, source)
+                            }
+                        }
+                    }
+                },
+                {
+                    "$project": {
+                        "_id": 1,
+                        "text": 1,
+                        "source": 1,
+                        "metadata": 1,
+                        "score": {"$meta": "searchScore"}
+                    }
+                },
+                {
+                    "$limit": limit
+                }
+            ]
+            
+            results = []
+            async for doc in self.collection.aggregate(pipeline):
+                results.append({
+                    "text": doc.get("text", ""),
+                    "source": doc.get("source", ""),
+                    "metadata": doc.get("metadata", {}),
+                    "score": doc.get("score", 0.0)
+                })
+            
+            if results:
+                return results
+            
+        except Exception as e:
+            logger.warning(f"Atlas Search 키워드 검색 실패, 대체 방법 시도: {e}")
+        
+        # 대체 방법: MongoDB 표준 $text 검색 (Atlas Search 실패 시)
+        try:
+            cursor = self.collection.find(
+                {"$text": {"$search": query}},
+                {"score": {"$meta": "textScore"}}
+            ).sort([("score", {"$meta": "textScore"})]).limit(limit)
+            
+            results = []
+            async for doc in cursor:
+                results.append({
+                    "text": doc.get("text", ""),
+                    "source": doc.get("source", ""),
+                    "metadata": doc.get("metadata", {}),
+                    "score": doc.get("score", 0.0)
+                })
+            
+            return results
+        except Exception as e:
+            logger.warning(f"키워드 검색 대체 방법도 실패: {e}")
+            return []
+    
+    async def hybrid_search(
+        self, 
+        query: str, 
+        limit: Optional[int] = None,
+        use_rrf: bool = False
+    ) -> List[Dict]:
+        """하이브리드 검색: 벡터 검색 + 키워드 검색 결합"""
+        if self.collection is None:
+            logger.error("MongoDB가 연결되지 않았습니다.")
+            return []
+        
+        # 설정값 가져오기
+        k_weight = config.HYBRID_K_WEIGHT
+        s_weight = config.HYBRID_S_WEIGHT
+        rrf_k = config.RRF_K
+        final_limit = limit or config.FINAL_TOP_K
+        
+        # 각 검색 수행 (충분한 결과를 위해 limit * 2로 검색)
+        search_limit = final_limit * 2
+        
+        # 벡터 검색 (시맨틱 검색)
+        vector_results = await self.search(query, limit=search_limit)
+        
+        # 키워드 검색
+        keyword_results = await self.keyword_search(query, limit=search_limit)
+        
+        # 결과가 없으면 벡터 검색 결과만 반환
+        if not vector_results and not keyword_results:
+            return []
+        if not keyword_results:
+            return vector_results[:final_limit]
+        if not vector_results:
+            return keyword_results[:final_limit]
+        
+        # 결과 통합 (RRF 또는 가중치 결합)
+        if use_rrf:
+            # RRF(Reciprocal Rank Fusion) 사용
+            combined_results = self._combine_results_rrf(
+                vector_results, keyword_results, rrf_k
+            )
+        else:
+            # 가중치 결합 사용
+            combined_results = self._combine_results_weighted(
+                vector_results, keyword_results, k_weight, s_weight
+            )
+        
+        # 최종 결과 반환
+        final_results = combined_results[:final_limit]
+        logger.info(f"하이브리드 검색 완료: 벡터 {len(vector_results)}개, 키워드 {len(keyword_results)}개 → 최종 {len(final_results)}개")
+        
+        return final_results
+    
+    def _combine_results_rrf(
+        self, 
+        vector_results: List[Dict], 
+        keyword_results: List[Dict], 
+        rrf_k: int
+    ) -> List[Dict]:
+        """RRF(Reciprocal Rank Fusion)를 사용한 결과 결합"""
+        # 문서 ID를 키로 하는 딕셔너리 생성
+        doc_scores: Dict[str, Dict] = {}
+        
+        # 벡터 검색 결과 점수 계산
+        for rank, result in enumerate(vector_results, start=1):
+            doc_id = result.get("source", "") + "|" + result.get("text", "")[:50]
+            rrf_score = 1.0 / (rrf_k + rank)
+            if doc_id not in doc_scores:
+                doc_scores[doc_id] = {
+                    "text": result.get("text", ""),
+                    "source": result.get("source", ""),
+                    "metadata": result.get("metadata", {}),
+                    "score": 0.0
+                }
+            doc_scores[doc_id]["score"] += rrf_score
+        
+        # 키워드 검색 결과 점수 계산
+        for rank, result in enumerate(keyword_results, start=1):
+            doc_id = result.get("source", "") + "|" + result.get("text", "")[:50]
+            rrf_score = 1.0 / (rrf_k + rank)
+            if doc_id not in doc_scores:
+                doc_scores[doc_id] = {
+                    "text": result.get("text", ""),
+                    "source": result.get("source", ""),
+                    "metadata": result.get("metadata", {}),
+                    "score": 0.0
+                }
+            doc_scores[doc_id]["score"] += rrf_score
+        
+        # 점수 기준으로 정렬
+        combined = list(doc_scores.values())
+        combined.sort(key=lambda x: x["score"], reverse=True)
+        
+        return combined
+    
+    def _combine_results_weighted(
+        self, 
+        vector_results: List[Dict], 
+        keyword_results: List[Dict], 
+        k_weight: float, 
+        s_weight: float
+    ) -> List[Dict]:
+        """가중치 결합을 사용한 결과 결합"""
+        # 문서 ID를 키로 하는 딕셔너리 생성
+        doc_scores: Dict[str, Dict] = {}
+        
+        # 1. 벡터 검색 점수 처리
+        # 벡터 검색 점수(코사인 유사도)는 이미 0~1 범위이므로 정규화하지 않고 원본 점수에 가중치만 적용
+        for result in vector_results:
+            doc_id = result.get("source", "") + "|" + result.get("text", "")[:50]
+            # 벡터 검색 점수는 이미 0~1 범위이므로 정규화 없이 가중치만 곱함
+            weighted_score = result.get("score", 0.0) * s_weight
+            if doc_id not in doc_scores:
+                doc_scores[doc_id] = {
+                    "text": result.get("text", ""),
+                    "source": result.get("source", ""),
+                    "metadata": result.get("metadata", {}),
+                    "score": 0.0
+                }
+            doc_scores[doc_id]["score"] += weighted_score
+        
+        # 2. 키워드 검색 점수 처리
+        # 키워드 검색 점수(BM25)는 보통 0~20 이상일 수 있으므로 정규화 필요
+        # 하지만 결과가 적거나 점수가 낮을 때 과도한 정규화를 방지하기 위해 절대 평가 요소 도입
+        max_keyword_score = max([r.get("score", 0.0) for r in keyword_results], default=1.0)
+        
+        if max_keyword_score > 0:
+            # 키워드 검색 결과가 적거나 점수가 낮을 때 과도한 정규화 방지
+            # 최소 정규화 기준값 설정 (BM25 점수가 10점 미만이면 강제로 10점 기준으로 정규화)
+            MIN_KEYWORD_SCORE_THRESHOLD = 10.0  # 환경에 따라 조정 가능
+            
+            if max_keyword_score < MIN_KEYWORD_SCORE_THRESHOLD:
+                # 최고 점수가 너무 낮으면 절대 평가 기준 사용
+                normalization_factor = MIN_KEYWORD_SCORE_THRESHOLD
+                logger.debug(f"키워드 검색 최고 점수가 낮음 ({max_keyword_score:.2f} < {MIN_KEYWORD_SCORE_THRESHOLD}), 절대 평가 기준 사용")
+            else:
+                # 정상 범위면 최고 점수로 정규화
+                normalization_factor = max_keyword_score
+            
+            # 키워드 검색 결과 점수 계산 (정규화 후 가중치 적용)
+            for result in keyword_results:
+                doc_id = result.get("source", "") + "|" + result.get("text", "")[:50]
+                normalized_score = result.get("score", 0.0) / normalization_factor
+                # 정규화 후 1.0을 초과하지 않도록 제한
+                normalized_score = min(normalized_score, 1.0)
+                weighted_score = normalized_score * k_weight
+                
+                if doc_id not in doc_scores:
+                    doc_scores[doc_id] = {
+                        "text": result.get("text", ""),
+                        "source": result.get("source", ""),
+                        "metadata": result.get("metadata", {}),
+                        "score": 0.0
+                    }
+                doc_scores[doc_id]["score"] += weighted_score
+        
+        # 점수 기준으로 정렬
+        combined = list(doc_scores.values())
+        combined.sort(key=lambda x: x["score"], reverse=True)
+        
+        # 점수 범위 확인 로그 (디버깅용)
+        if combined:
+            max_combined_score = combined[0]["score"]
+            logger.info(f"가중치 결합 최고 점수: {max_combined_score:.4f} (가중치: 벡터={s_weight}, 키워드={k_weight}, 벡터 결과={len(vector_results)}개, 키워드 결과={len(keyword_results)}개)")
+            if max_combined_score > 1.0:
+                logger.warning(f"가중치 결합 점수가 1.0을 초과: {max_combined_score:.4f} (가중치: 벡터={s_weight}, 키워드={k_weight})")
+        
+        return combined
     
     async def fallback_search(self, query: str, limit: int = 5) -> List[Dict]:
         """벡터 검색이 불가능한 경우 대체 텍스트 검색"""

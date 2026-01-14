@@ -39,7 +39,7 @@ def _get_writer_llm():
 
 
 async def _search_db(search_message: str, user_message: str) -> list:
-    """벡터 DB 검색"""
+    """하이브리드 검색: 벡터 DB 검색 + 키워드 검색"""
     try:
         def extract_keywords(text):
             keywords = []
@@ -91,22 +91,37 @@ async def _search_db(search_message: str, user_message: str) -> list:
         all_results = []
         seen_texts = set()
         
+        # 하이브리드 검색 사용 (벡터 + 키워드)
+        final_limit = config.FINAL_TOP_K
+        
         for query in search_queries[:2]:
             try:
-                results = await vector_store.search(query, limit=5)
+                # 하이브리드 검색 수행 (가중치 결합 방식 사용)
+                results = await vector_store.hybrid_search(query, limit=final_limit, use_rrf=False)
                 for result in results:
                     result_text = result.get('text', '')
                     if result_text and result_text not in seen_texts:
                         seen_texts.add(result_text)
                         all_results.append(result)
             except Exception as e:
-                logger.warning(f"쿼리 '{query[:50]}...' 검색 실패: {e}")
-                continue
+                logger.warning(f"쿼리 '{query[:50]}...' 하이브리드 검색 실패, 벡터 검색으로 대체: {e}")
+                # 하이브리드 검색 실패 시 벡터 검색으로 대체
+                try:
+                    results = await vector_store.search(query, limit=final_limit)
+                    for result in results:
+                        result_text = result.get('text', '')
+                        if result_text and result_text not in seen_texts:
+                            seen_texts.add(result_text)
+                            all_results.append(result)
+                except Exception as fallback_error:
+                    logger.warning(f"쿼리 '{query[:50]}...' 벡터 검색도 실패: {fallback_error}")
+                    continue
         
+        # 점수 기준으로 정렬 (하이브리드 검색 결과는 이미 정렬되어 있지만, 여러 쿼리 결과를 합칠 때 다시 정렬)
         all_results.sort(key=lambda x: x.get('score', 0), reverse=True)
-        final_results = all_results[:5]
+        final_results = all_results[:final_limit]
         
-        logger.info(f"FAQ DB 검색 완료: {len(final_results)}개 결과")
+        logger.info(f"FAQ 하이브리드 검색 완료: {len(final_results)}개 결과")
         return final_results
     except Exception as e:
         logger.error(f"FAQ DB 검색 실패: {e}")
