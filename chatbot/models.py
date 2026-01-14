@@ -154,6 +154,7 @@ class ChatState(TypedDict, total=False):
     grader_score: Optional[float]  # Grader 평가 점수
     grader_feedback: Optional[str]  # Grader 피드백
     is_sufficient: Optional[bool]  # 검색 결과 충분 여부 (Grader 결과)
+    google_rate_limit_hit: bool  # Google API 할당량 초과 여부 (다음 검색에서 Google 건너뛰기)
     
     # 요약/압축 (선택적 사용)
     summarized_results: list  # 요약된 검색 결과 (선택적)

@@ -145,6 +145,12 @@ async def grader(state: ChatState):
     if is_comparison_query:
         additional_instructions += "\n**비교 질문**: 부분 정보라도 0.6 이상."
     
+    # Google API 할당량 초과 여부 확인
+    google_rate_limit_hit = state.get("google_rate_limit_hit", False)
+    google_note = ""
+    if google_rate_limit_hit:
+        google_note = "\n**참고**: Google 검색이 할당량 초과로 사용되지 않았습니다. DuckDuckGo와 Tavily 결과만으로 평가하세요."
+    
     grader_prompt = f"""
 당신은 검색 결과 평가 전문가입니다.
 
@@ -153,16 +159,17 @@ async def grader(state: ChatState):
 
 **검색 결과:**
 {chr(10).join(search_results_text)}
+{google_note}
 
 **평가 기준:**
 1. 질문에 직접 답변 가능한 정보 포함?
 2. 구체적인 숫자/날짜/이름 포함?
-3. 신뢰할 수 있는 출처?
+3. 신뢰할 수 있는 출처? (Google이 없어도 DuckDuckGo/Tavily 결과가 충분하면 합격)
 4. 최신 정보?
 
 **점수:**
-- 0.7 이상: 충분 (답변 가능)
-- 0.7 미만: 부족 (재검색 필요)
+- 0.6 이상: 충분 (답변 가능) - DuckDuckGo/Tavily 결과만으로도 충분하면 합격
+- 0.6 미만: 부족 (재검색 필요)
 {additional_instructions}
 
 한국어로 피드백 작성.

@@ -5,6 +5,7 @@ import re
 import sys
 import logging
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 import httpx
 from langchain_core.messages import HumanMessage, AIMessage
@@ -23,129 +24,233 @@ except ImportError:
     except ImportError:
         DDGS = None
 
+# 선택적 의존성 (Tavily)
+try:
+    from tavily import TavilyClient
+    TAVILY_AVAILABLE = True
+except ImportError:
+    TAVILY_AVAILABLE = False
+    TavilyClient = None
+
 logger = logging.getLogger(__name__)
 
 
+async def _search_single_google_query(client: httpx.AsyncClient, query: str, google_api_key: str, google_cx: str) -> tuple[list, bool]:
+    """단일 Google 검색 쿼리 처리 (병렬 처리용)"""
+    try:
+        url = config.GOOGLE_SEARCH_API_URL
+        params = {
+            "key": google_api_key,
+            "cx": google_cx,
+            "q": query,
+            "num": min(config.MAX_RESULTS_PER_QUERY, 10),
+            "lr": "lang_ko",
+        }
+        
+        response = await client.get(url, params=params)
+        
+        if response.status_code == 429:
+            logger.warning(f"Google API 할당량 초과: {query[:50]}")
+            return [], True
+        
+        if response.status_code != 200:
+            return [], False
+        
+        data = response.json()
+        
+        if "error" in data:
+            error_code = data["error"].get("code", 0)
+            if error_code == 429:
+                return [], True
+            return [], False
+        
+        results = []
+        if "items" in data:
+            for item in data.get("items", []):
+                results.append({
+                    "title": item.get("title", ""),
+                    "snippet": item.get("snippet", ""),
+                    "url": item.get("link", ""),
+                })
+        
+        return results, False
+        
+    except httpx.TimeoutException:
+        logger.warning(f"Google 검색 타임아웃: {query[:50]}")
+        return [], False
+    except Exception as e:
+        logger.error(f"Google 검색 오류 ({query[:50]}): {e}")
+        return [], False
+
+
 async def _search_with_google(search_queries: list) -> tuple[list, bool]:
-    """Google Custom Search API로 검색"""
+    """Google Custom Search API로 검색 (병렬 처리)"""
     google_api_key = config.GOOGLE_API_KEY
     google_cx = config.GOOGLE_CX
     
     if not google_api_key or not google_cx:
         return [], False
     
+    logger.info(f"Google 검색 시작: {len(search_queries)}개 쿼리 (병렬 처리)")
+    
     all_results = []
     seen_urls = set()
     rate_limit_hit = False
     
-    logger.info(f"Google 검색 시작: {len(search_queries)}개 쿼리")
-    
     async with httpx.AsyncClient(timeout=15.0) as client:
-        for query_idx, query in enumerate(search_queries, 1):
-            if rate_limit_hit:
-                break
-                
-            try:
-                if query_idx > 1:
-                    await asyncio.sleep(0.5)
-                
-                url = config.GOOGLE_SEARCH_API_URL
-                params = {
-                    "key": google_api_key,
-                    "cx": google_cx,
-                    "q": query,
-                    "num": min(config.MAX_RESULTS_PER_QUERY, 10),
-                    "lr": "lang_ko",
-                }
-                
-                response = await client.get(url, params=params)
-                
-                if response.status_code == 429:
-                    logger.warning("Google API 할당량 초과")
-                    rate_limit_hit = True
-                    break
-                
-                if response.status_code != 200:
-                    continue
-                
-                data = response.json()
-                
-                if "error" in data:
-                    error_code = data["error"].get("code", 0)
-                    if error_code == 429:
-                        rate_limit_hit = True
-                        break
-                    continue
-                
-                if "items" in data:
-                    for item in data.get("items", []):
-                        url_link = item.get("link", "")
-                        if url_link and url_link not in seen_urls:
-                            seen_urls.add(url_link)
-                            all_results.append({
-                                "title": item.get("title", ""),
-                                "snippet": item.get("snippet", ""),
-                                "url": url_link,
-                            })
-                            
-            except httpx.TimeoutException:
-                logger.warning(f"Google 검색 타임아웃: {query[:50]}")
-            except Exception as e:
-                logger.error(f"Google 검색 오류: {e}")
+        # 모든 쿼리를 병렬로 처리
+        tasks = [
+            _search_single_google_query(client, query, google_api_key, google_cx)
+            for query in search_queries
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Google 쿼리 오류 ({search_queries[i][:50]}): {result}")
                 continue
+            
+            query_results, hit_rate_limit = result
+            if hit_rate_limit:
+                rate_limit_hit = True
+            
+            for item in query_results:
+                url_link = item.get("url", "")
+                if url_link and url_link not in seen_urls:
+                    seen_urls.add(url_link)
+                    all_results.append({
+                        "title": item.get("title", ""),
+                        "snippet": item.get("snippet", ""),
+                        "url": url_link,
+                    })
     
-    logger.info(f"Google 검색 완료: {len(all_results)}개 결과")
+    logger.info(f"Google 검색 완료: {len(all_results)}개 결과 (병렬 처리)")
     return all_results, rate_limit_hit
 
 
+async def _search_single_ddg_query(query: str) -> list:
+    """단일 DuckDuckGo 검색 쿼리 처리 (병렬 처리용)"""
+    if DDGS is None:
+        return []
+    
+    # site: 쿼리 변환
+    processed_query = query
+    if 'site:bithumb.com' in query.lower():
+        cleaned_query = query.lower().replace('site:bithumb.com', '').strip()
+        if '빗썸' not in cleaned_query:
+            cleaned_query = f"빗썸 {cleaned_query}"
+        processed_query = cleaned_query
+    
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(processed_query, max_results=config.MAX_RESULTS_PER_QUERY))
+            return results
+    except Exception as e:
+        logger.error(f"DuckDuckGo 쿼리 오류 ({query[:50]}): {e}")
+        return []
+
+
 async def _search_with_duckduckgo(search_queries: list) -> list:
-    """DuckDuckGo로 검색"""
+    """DuckDuckGo로 검색 (병렬 처리)"""
     if DDGS is None:
         logger.warning("DuckDuckGo 라이브러리 없음")
         return []
     
+    logger.info(f"DuckDuckGo 검색 시작: {len(search_queries)}개 쿼리 (병렬 처리)")
+    
     all_results = []
     seen_urls = set()
     
-    logger.info(f"DuckDuckGo 검색 시작: {len(search_queries)}개 쿼리")
+    # 모든 쿼리를 병렬로 처리
+    tasks = [_search_single_ddg_query(query) for query in search_queries]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
     
-    # site: 쿼리 변환
-    processed_queries = []
-    for query in search_queries:
-        if 'site:bithumb.com' in query.lower():
-            cleaned_query = query.lower().replace('site:bithumb.com', '').strip()
-            if '빗썸' not in cleaned_query:
-                cleaned_query = f"빗썸 {cleaned_query}"
-            processed_queries.append(cleaned_query)
-        else:
-            processed_queries.append(query)
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            logger.error(f"DuckDuckGo 쿼리 오류 ({search_queries[i][:50]}): {result}")
+            continue
+        
+        for item in result:
+            url = item.get("href", "")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                all_results.append({
+                    "title": item.get("title", ""),
+                    "body": item.get("body", ""),
+                    "href": url,
+                })
+    
+    logger.info(f"DuckDuckGo 검색 완료: {len(all_results)}개 결과 (병렬 처리)")
+    return all_results
+
+
+async def _search_single_tavily_query(query: str, tavily_api_key: str) -> list:
+    """단일 Tavily 검색 쿼리 처리 (병렬 처리용)"""
+    if not TAVILY_AVAILABLE or not tavily_api_key:
+        return []
     
     try:
-        with DDGS() as ddgs:
-            for query_idx, query in enumerate(processed_queries, 1):
-                try:
-                    results = list(ddgs.text(query, max_results=config.MAX_RESULTS_PER_QUERY))
-                    
-                    for result in results:
-                        url = result.get("href", "")
-                        if url and url not in seen_urls:
-                            seen_urls.add(url)
-                            all_results.append({
-                                "title": result.get("title", ""),
-                                "body": result.get("body", ""),
-                                "href": url,
-                            })
-                    
-                    if query_idx < len(processed_queries):
-                        await asyncio.sleep(0.5)
-                        
-                except Exception as e:
-                    logger.error(f"DuckDuckGo 쿼리 오류: {e}")
-                    continue
+        # TavilyClient는 동기식이므로 별도 스레드에서 실행
+        def _sync_search():
+            client = TavilyClient(api_key=tavily_api_key)
+            response = client.search(
+                query=query,
+                search_depth="basic",  # basic 또는 advanced
+                max_results=config.MAX_RESULTS_PER_QUERY,
+                include_answer=False,
+                include_raw_content=False
+            )
+            return response.get("results", [])
+        
+        # 별도 스레드에서 실행
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            results = await loop.run_in_executor(executor, _sync_search)
+        
+        return results
+        
     except Exception as e:
-        logger.error(f"DuckDuckGo 초기화 오류: {e}")
+        logger.error(f"Tavily 쿼리 오류 ({query[:50]}): {e}")
+        return []
+
+
+async def _search_with_tavily(search_queries: list) -> list:
+    """Tavily로 검색 (병렬 처리)"""
+    tavily_api_key = config.TAVILY_API_KEY
     
-    logger.info(f"DuckDuckGo 검색 완료: {len(all_results)}개 결과")
+    if not TAVILY_AVAILABLE:
+        logger.warning("Tavily 라이브러리 없음")
+        return []
+    
+    if not tavily_api_key:
+        logger.warning("Tavily API 키가 설정되지 않음")
+        return []
+    
+    logger.info(f"Tavily 검색 시작: {len(search_queries)}개 쿼리 (병렬 처리)")
+    
+    all_results = []
+    seen_urls = set()
+    
+    # 모든 쿼리를 병렬로 처리
+    tasks = [_search_single_tavily_query(query, tavily_api_key) for query in search_queries]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            logger.error(f"Tavily 쿼리 오류 ({search_queries[i][:50]}): {result}")
+            continue
+        
+        for item in result:
+            url = item.get("url", "")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                all_results.append({
+                    "title": item.get("title", ""),
+                    "snippet": item.get("content", "") or item.get("snippet", ""),
+                    "url": url,
+                })
+    
+    logger.info(f"Tavily 검색 완료: {len(all_results)}개 결과 (병렬 처리)")
     return all_results
 
 
@@ -212,14 +317,30 @@ async def _get_prices_from_api(coin_names: list, is_past_date: bool, requested_d
 
 
 def _extract_coin_names(user_message: str) -> list:
-    """사용자 메시지에서 여러 코인명 추출 (리스트 반환)"""
+    """사용자 메시지에서 여러 코인명 추출 (리스트 반환)
+    
+    띄어쓰기 처리: "비트 코인" → "비트코인"으로 정규화
+    """
     coin_names = []
     try:
         from ...coinmarketcap import coinmarketcap_service
         
+        # 띄어쓰기 제거 버전도 체크 (예: "비트 코인" → "비트코인")
+        normalized_message = user_message.replace(" ", "")
+        
         # 한국어 코인명 추출 (모든 매칭)
+        # 원본 메시지와 정규화된 메시지 모두 체크
         for coin_korean, coin_symbol in coinmarketcap_service.SYMBOL_MAPPING.items():
+            # 원본 메시지에서 체크
             if coin_korean in user_message:
+                if coin_korean not in coin_names:
+                    coin_names.append(coin_korean)
+            # 정규화된 메시지에서 체크 (띄어쓰기 제거)
+            elif coin_korean in normalized_message:
+                if coin_korean not in coin_names:
+                    coin_names.append(coin_korean)
+            # 역방향 체크: "비트 코인"에서 "비트코인" 찾기
+            elif coin_korean.replace(" ", "") in normalized_message:
                 if coin_korean not in coin_names:
                     coin_names.append(coin_korean)
         
@@ -233,6 +354,24 @@ def _extract_coin_names(user_message: str) -> list:
                     if eng_symbol == symbol and korean not in coin_names:
                         coin_names.append(korean)
                         break
+        
+        # 추가: 일반적인 코인명 패턴 체크 (예: "비트 코인", "이더 리움")
+        common_patterns = {
+            "비트 코인": "비트코인",
+            "이더 리움": "이더리움",
+            "리 플": "리플",
+            "도지 코인": "도지코인",
+            "솔 라나": "솔라나",
+            "폴카 닷": "폴카닷",
+            "체인 링크": "체인링크",
+            "유니 스왑": "유니스왑",
+            "아발란 체": "아발란체",
+            "폴리 곤": "폴리곤",
+        }
+        for spaced_name, correct_name in common_patterns.items():
+            if spaced_name in user_message and correct_name not in coin_names:
+                coin_names.append(correct_name)
+        
     except ImportError:
         pass
     
@@ -403,32 +542,119 @@ async def researcher(state: ChatState):
                 f"{last_user_message} 빗썸"
             ]
     
-    # 웹 검색 수행
+    # 웹 검색 수행 (병렬 처리: Google, DuckDuckGo, Tavily 동시 실행)
     web_search_results = []
     
-    # Google 검색 시도
-    google_results, rate_limit_hit = await _search_with_google(search_queries)
+    # 이전 검색에서 Google API 할당량 초과 여부 확인
+    google_rate_limit_hit = state.get("google_rate_limit_hit", False)
     
+    if google_rate_limit_hit:
+        logger.info("⚠️ 이전 검색에서 Google API 할당량 초과 감지 - Google 검색 건너뛰기")
+        print("[Researcher] ⚠️ Google API 할당량 초과 - Google 검색 건너뛰기", file=sys.stdout, flush=True)
+        google_results = []
+        rate_limit_hit = True
+        # DuckDuckGo와 Tavily만 실행
+        duckduckgo_task = _search_with_duckduckgo(search_queries)
+        tavily_task = _search_with_tavily(search_queries)
+        
+        results = await asyncio.gather(
+            duckduckgo_task,
+            tavily_task,
+            return_exceptions=True
+        )
+        
+        # DuckDuckGo 결과 처리
+        if isinstance(results[0], Exception):
+            logger.error(f"DuckDuckGo 검색 오류: {results[0]}")
+            ddg_results = []
+        else:
+            ddg_results = results[0]
+        
+        # Tavily 결과 처리
+        if isinstance(results[1], Exception):
+            logger.error(f"Tavily 검색 오류: {results[1]}")
+            tavily_results = []
+        else:
+            tavily_results = results[1]
+    else:
+        logger.info("🔀 병렬 검색 시작: Google + DuckDuckGo + Tavily 동시 실행")
+        print("[Researcher] 🔀 병렬 검색 시작: Google + DuckDuckGo + Tavily", file=sys.stdout, flush=True)
+        
+        # Google, DuckDuckGo, Tavily 검색을 병렬로 실행
+        google_task = _search_with_google(search_queries)
+        duckduckgo_task = _search_with_duckduckgo(search_queries)
+        tavily_task = _search_with_tavily(search_queries)
+        
+        results = await asyncio.gather(
+            google_task,
+            duckduckgo_task,
+            tavily_task,
+            return_exceptions=True
+        )
+        
+        # Google 결과 처리
+        if isinstance(results[0], Exception):
+            logger.error(f"Google 검색 오류: {results[0]}")
+            google_results = []
+            rate_limit_hit = False
+        else:
+            google_results, rate_limit_hit = results[0]
+        
+        # DuckDuckGo 결과 처리
+        if isinstance(results[1], Exception):
+            logger.error(f"DuckDuckGo 검색 오류: {results[1]}")
+            ddg_results = []
+        else:
+            ddg_results = results[1]
+        
+        # Tavily 결과 처리
+        if isinstance(results[2], Exception):
+            logger.error(f"Tavily 검색 오류: {results[2]}")
+            tavily_results = []
+        else:
+            tavily_results = results[2]
+    
+    # Google 결과 추가
     if google_results:
         for i, result in enumerate(google_results[:config.MAX_SEARCH_RESULTS], 1):
             web_search_results.append({
                 "title": result.get("title", ""),
                 "snippet": result.get("snippet", ""),
                 "url": result.get("url", ""),
-                "rank": i
+                "rank": i,
+                "source": "google"
             })
     
-    # Google 실패 시 DuckDuckGo
-    if not web_search_results or rate_limit_hit:
-        ddg_results = await _search_with_duckduckgo(search_queries)
+    if ddg_results:
+        seen_urls = {r.get("url", "") for r in web_search_results}
+        rank_offset = len(web_search_results)
         
         for i, result in enumerate(ddg_results[:config.MAX_SEARCH_RESULTS], 1):
-            web_search_results.append({
-                "title": result.get("title", ""),
-                "snippet": result.get("body", ""),
-                "url": result.get("href", ""),
-                "rank": i
-            })
+            url = result.get("href", "") or result.get("url", "")
+            if url and url not in seen_urls:
+                web_search_results.append({
+                    "title": result.get("title", ""),
+                    "snippet": result.get("body", "") or result.get("snippet", ""),
+                    "url": url,
+                    "rank": rank_offset + i,
+                    "source": "duckduckgo"
+                })
+    
+    # Tavily 결과 추가
+    if tavily_results:
+        seen_urls = {r.get("url", "") for r in web_search_results}
+        rank_offset = len(web_search_results)
+        
+        for i, result in enumerate(tavily_results[:config.MAX_SEARCH_RESULTS], 1):
+            url = result.get("url", "")
+            if url and url not in seen_urls:
+                web_search_results.append({
+                    "title": result.get("title", ""),
+                    "snippet": result.get("snippet", ""),
+                    "url": url,
+                    "rank": rank_offset + i,
+                    "source": "tavily"
+                })
     
     # 검색 완료 메시지
     search_summary = f"[웹 검색 완료]\n{len(web_search_results)}개 결과"
@@ -441,10 +667,15 @@ async def researcher(state: ChatState):
     
     search_loop_count = state.get("search_loop_count", 0) + 1
     
+    # Google API 할당량 초과가 발생했으면 state에 저장 (다음 검색에서 Google 건너뛰기)
+    if rate_limit_hit:
+        logger.info("⚠️ Google API 할당량 초과 - 다음 검색에서 Google 건너뛰기")
+    
     return {
         "web_search_results": web_search_results,
         "messages": current_messages + [researcher_message],
         "search_loop_count": search_loop_count,
+        "google_rate_limit_hit": rate_limit_hit,  # Google API 할당량 초과 여부 저장
         "summarized_results": []
     }
 
