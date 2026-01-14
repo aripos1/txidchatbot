@@ -55,7 +55,7 @@ async def check_db(state: ChatState):
         
         try:
             logger.info("벡터 DB 검색 시작...")
-            search_results = await vector_store.search(last_user_message, limit=3)
+            search_results = await vector_store.search(last_user_message, limit=config.VECTOR_SEARCH_LIMIT)
             logger.info(f"벡터 DB 검색 완료: {len(search_results)}개 결과 발견")
             
             if search_results:

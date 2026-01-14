@@ -241,11 +241,15 @@ class VectorStore:
         
         logger.info("크롤링 및 저장 완료!")
     
-    async def search(self, query: str, limit: int = 5) -> List[Dict]:
+    async def search(self, query: str, limit: Optional[int] = None) -> List[Dict]:
         """벡터 검색"""
         if self.collection is None:
             logger.error("MongoDB가 연결되지 않았습니다.")
             return []
+        
+        # limit이 지정되지 않으면 설정값 사용
+        if limit is None:
+            limit = config.VECTOR_SEARCH_LIMIT
         
         try:
             # 쿼리 임베딩 생성
