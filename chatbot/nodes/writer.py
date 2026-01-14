@@ -16,6 +16,60 @@ from ..utils import ensure_logger_setup, handle_node_error
 logger = logging.getLogger(__name__)
 
 
+def _fix_numbering(text: str) -> str:
+    """번호 매기기 검증 및 수정 (1. 1. 1. → 1. 2. 3. 형식으로 수정)"""
+    import re
+    
+    # 번호 패턴 찾기 (1. 2. 3. 형식)
+    # 줄 시작 부분의 번호만 매칭
+    lines = text.split('\n')
+    fixed_lines = []
+    current_number = 1
+    in_numbered_section = False
+    
+    for i, line in enumerate(lines):
+        # 줄 시작 부분의 번호 패턴 찾기 (1. 또는 1) 형식)
+        numbered_match = re.match(r'^(\s*)(\d+)[\.\)]\s+(.+)', line)
+        
+        if numbered_match:
+            indent = numbered_match.group(1)
+            number = int(numbered_match.group(2))
+            content = numbered_match.group(3)
+            
+            # 같은 번호가 반복되거나 순차적이지 않으면 수정
+            if number != current_number:
+                # 올바른 번호로 교체
+                fixed_line = f"{indent}{current_number}. {content}"
+                fixed_lines.append(fixed_line)
+                if number != current_number:
+                    logger.info(f"번호 매기기 수정: {number}. → {current_number}.")
+                current_number += 1
+                in_numbered_section = True
+            else:
+                # 올바른 번호면 그대로 사용
+                fixed_lines.append(line)
+                current_number += 1
+                in_numbered_section = True
+        else:
+            # 번호가 없는 줄
+            # 빈 줄이나 섹션 구분(---, === 등)이면 번호 리셋 고려
+            stripped = line.strip()
+            if not stripped or stripped.startswith('---') or stripped.startswith('==='):
+                # 빈 줄이나 구분선이면 번호 리셋
+                if in_numbered_section:
+                    current_number = 1
+                    in_numbered_section = False
+            fixed_lines.append(line)
+    
+    fixed_text = '\n'.join(fixed_lines)
+    
+    # 수정이 있었는지 확인
+    if fixed_text != text:
+        logger.warning("⚠️ 번호 매기기가 수정되었습니다.")
+    
+    return fixed_text
+
+
 def _get_writer_llm():
     """Writer LLM 인스턴스 생성"""
     return ChatOpenAI(**config.get_writer_llm_config())
@@ -314,6 +368,9 @@ async def writer(state: ChatState):
                     break
             
             logger.warning("⚠️ 모든 JSON 블록을 강제로 제거했습니다.")
+        
+        # 번호 매기기 검증 및 수정
+        response_text = _fix_numbering(response_text)
         
         # response 객체의 content를 업데이트 (스트리밍에 반영되도록)
         if hasattr(response, "content"):

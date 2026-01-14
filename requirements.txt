@@ -15,6 +15,8 @@ itsdangerous>=2.1.2  # 세션 암호화용 (SessionMiddleware)
 # boto3>=1.34.11  # AWS 서비스 사용 시
 # sentry-sdk>=1.39.1  # 에러 추적 사용 시
 # redis>=5.0.1  # Redis 캐싱 사용 시 (현재는 SimpleCache 사용)
+# apache-airflow>=2.8.0  # Airflow DAG 실행 시 (별도 환경 권장)
+# apache-airflow-providers-postgres>=5.10.0  # PostgreSQL 백엔드 사용 시
 
 # --- LangGraph and LangChain (v1.0+) ---
 langgraph>=1.0.0
@@ -39,6 +41,8 @@ numpy>=1.26.4
 ddgs>=1.0.0  # 최신 DuckDuckGo 검색 라이브러리 (권장)
 duckduckgo-search>=5.1.0  # 구버전 호환성 (fallback)
 tavily-python>=0.3.0  # Tavily Search API 클라이언트
+playwright>=1.40.0  # 브라우저 자동화 (Cloudflare 우회용, 선택사항, Selenium보다 빠름)
+# selenium>=4.15.0  # 브라우저 자동화 대안 (Playwright 권장)
 
 # --- Data Validation ---
 pydantic>=2.0.0
