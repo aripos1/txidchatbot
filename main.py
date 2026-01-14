@@ -1998,6 +1998,7 @@ async def chat_stream(request: Request):
                             current_node = node_name
                             display_name = node_display_names[node_name]
                             yield f"data: {json.dumps({'type': 'node', 'node': node_name, 'display': display_name})}\n\n"
+                            
                             # 노드별 콘텐츠 초기화
                             if node_name in response_nodes:
                                 accumulated_content[node_name] = ""
@@ -2074,11 +2075,40 @@ async def chat_stream(request: Request):
                                         logger.info(f"[STREAM] coordinator 마지막 메시지 길이: {len(content) if content else 0}")
                                         logger.info(f"[STREAM] coordinator 마지막 메시지 미리보기: {content[:200] if content else 'None'}")
                         
-                        search_info = extract_search_info_from_node_output(node_name, output)
-                        
-                        # 검색 정보가 있으면 전송
-                        if search_info:
-                            yield f"data: {json.dumps({'type': 'node_search', 'node': node_name, 'search_info': search_info})}\n\n"
+                        # coordinator의 경우 specialist_used를 확인하여 해당 specialist의 검색 정보 추출
+                        if node_name == "coordinator" and isinstance(output, dict):
+                            specialist_used = output.get("specialist_used", "")
+                            question_type = output.get("question_type", "")
+                            db_search_results = output.get("db_search_results", [])
+                            search_queries = output.get("search_queries", [])
+                            
+                            logger.info(f"[STREAM] coordinator specialist_used: {specialist_used}, question_type: {question_type}")
+                            logger.info(f"[STREAM] coordinator db_search_results: {len(db_search_results)}개")
+                            logger.info(f"[STREAM] coordinator search_queries: {search_queries}")
+                            
+                            # faq_specialist인 경우 또는 FAQ 관련 검색 정보가 있는 경우
+                            is_faq = (
+                                specialist_used == "faq_specialist" or 
+                                question_type == "faq" or
+                                (db_search_results and not output.get("web_search_results", []))
+                            )
+                            
+                            if is_faq:
+                                search_info = extract_search_info_from_node_output("faq_specialist", output)
+                                logger.info(f"[STREAM] coordinator에서 faq_specialist 검색 정보 추출 결과: {search_info}")
+                                if search_info:
+                                    # faq_specialist로 node_search 이벤트 전송
+                                    yield f"data: {json.dumps({'type': 'node_search', 'node': 'faq_specialist', 'search_info': search_info})}\n\n"
+                                    logger.info(f"[STREAM] coordinator에서 faq_specialist 검색 정보 전송 완료: {search_info}")
+                                else:
+                                    logger.warning(f"[STREAM] coordinator에서 faq_specialist 검색 정보가 비어있음")
+                        else:
+                            # 웹서치와 동일하게 처리: extract_search_info_from_node_output로 검색 정보 추출
+                            search_info = extract_search_info_from_node_output(node_name, output)
+                            
+                            # 검색 정보가 있으면 node_search 이벤트 전송 (웹서치와 동일한 로직)
+                            if search_info:
+                                yield f"data: {json.dumps({'type': 'node_search', 'node': node_name, 'search_info': search_info})}\n\n"
                         
                         # coordinator 노드도 응답 처리 (transaction_specialist의 결과를 포함)
                         if node_name in response_nodes or node_name == "coordinator":
