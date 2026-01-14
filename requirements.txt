@@ -38,6 +38,7 @@ lxml>=5.2.2
 numpy>=1.26.4
 ddgs>=1.0.0  # 최신 DuckDuckGo 검색 라이브러리 (권장)
 duckduckgo-search>=5.1.0  # 구버전 호환성 (fallback)
+tavily-python>=0.3.0  # Tavily Search API 클라이언트
 
 # --- Data Validation ---
 pydantic>=2.0.0

@@ -28,6 +28,7 @@ def _get_grader_llm():
 
 @traceable(name="grader", run_type="llm")
 async def grader(state: ChatState):
+    session_id = state.get("session_id", "default")
     """Grader: 검색 결과 평가"""
     print("="*60, file=sys.stdout, flush=True)
     print("Grader 노드 시작: 검색 결과 평가", file=sys.stdout, flush=True)
@@ -55,7 +56,8 @@ async def grader(state: ChatState):
         return {
             "grader_score": 0.0,
             "grader_feedback": "검색 결과가 없습니다.",
-            "is_sufficient": False
+            "is_sufficient": False,
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
     
     # 시스템 안내 메시지 자동 합격 (365일 제한 등)
@@ -71,6 +73,7 @@ async def grader(state: ChatState):
         notice_text = notice_result.get("snippet", "시스템 안내 메시지") if notice_result else "시스템 안내"
         return {
             "grader_score": 0.9,
+            "session_id": session_id,  # 세션 ID 명시적으로 포함
             "grader_feedback": notice_text,
             "is_sufficient": True
         }
@@ -88,7 +91,8 @@ async def grader(state: ChatState):
         return {
             "grader_score": 0.95,
             "grader_feedback": "시세 API에서 정확한 가격 정보를 가져왔습니다.",
-            "is_sufficient": True
+            "is_sufficient": True,
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
     
     # 검색 결과 텍스트 변환
@@ -197,13 +201,15 @@ async def grader(state: ChatState):
         return {
             "grader_score": grader_result.score,
             "grader_feedback": grader_result.feedback,
-            "is_sufficient": grader_result.is_sufficient
+            "is_sufficient": grader_result.is_sufficient,
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
     except Exception as e:
         logger.error(f"Grader 오류: {e}")
         return {
             "grader_score": 0.6 if web_search_results else 0.0,
             "grader_feedback": f"평가 오류: {str(e)}",
-            "is_sufficient": len(web_search_results) > 0
+            "is_sufficient": len(web_search_results) > 0,
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
 

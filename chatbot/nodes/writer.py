@@ -342,7 +342,11 @@ async def writer(state: ChatState):
         logger.info("="*60)
         print("="*60, file=sys.stdout, flush=True)
         
-        return {"messages": [response]}
+        # session_id를 명시적으로 포함하여 반환 (web_search 경로에서 세션 ID 유지)
+        return {
+            "messages": [response],
+            "session_id": session_id  # 세션 ID 명시적으로 포함
+        }
     except Exception as e:
         logger.info("="*60)
         return handle_node_error(e, "writer", state)

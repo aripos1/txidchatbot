@@ -5,6 +5,7 @@
 import os
 import logging
 import httpx
+import asyncio
 from typing import Optional, Dict, List
 from datetime import datetime, timezone, timedelta
 from .configuration import config
@@ -22,6 +23,9 @@ class CoinMarketCapService:
     # 캐시 (5분 동안 유효)
     _cache: Dict[str, tuple] = {}  # {symbol: (data, timestamp)}
     CACHE_DURATION: int = 300  # 5분 (초)
+    
+    # 진행 중인 요청 추적 (동시 요청 중복 방지)
+    _pending_requests: Dict[str, asyncio.Task] = {}
     
     # 코인 심볼 매핑 (한국어 → 영어 심볼)
     SYMBOL_MAPPING: Dict[str, str] = {
@@ -98,15 +102,48 @@ class CoinMarketCapService:
             logger.warning(f"⚠️ 코인 심볼을 찾을 수 없습니다: {coin_name}")
             return None
         
-        # 캐시 확인 (과거 날짜는 캐시 사용 안 함)
-        cache_key = f"{symbol}_{convert}"
-        if not target_date and cache_key in cls._cache:
+        # 캐시 키 생성
+        date_str = target_date.strftime("%Y%m%d") if target_date else "current"
+        cache_key = f"{symbol}_{convert}_{date_str}"
+        
+        # 캐시 확인
+        if cache_key in cls._cache:
             data, timestamp = cls._cache[cache_key]
-            if (datetime.now().timestamp() - timestamp) < cls.CACHE_DURATION:
-                logger.info(f"✅ 코인마켓캡 캐시 사용: {symbol}")
+            # 과거 날짜는 영구 캐시, 현재 시세는 5분 캐시
+            is_expired = not target_date and (datetime.now().timestamp() - timestamp) >= cls.CACHE_DURATION
+            if not is_expired:
+                logger.info(f"✅ 코인마켓캡 캐시 사용: {symbol} ({date_str})")
                 return data
         
+        # 진행 중인 요청 확인 (동시 요청 중복 방지)
+        if cache_key in cls._pending_requests:
+            logger.info(f"⏳ 진행 중인 요청 대기: {symbol} ({date_str})")
+            try:
+                return await cls._pending_requests[cache_key]
+            except Exception as e:
+                logger.warning(f"⚠️ 대기 중인 요청 실패: {e}")
+                # 실패 시 새로 요청
+                pass
+        
+        # 새 요청 시작
+        task = asyncio.create_task(cls._fetch_price_internal(coin_name, symbol, convert, target_date, cache_key))
+        cls._pending_requests[cache_key] = task
+        
         try:
+            result = await task
+            return result
+        finally:
+            cls._pending_requests.pop(cache_key, None)
+    
+    @classmethod
+    async def _fetch_price_internal(cls, coin_name: str, symbol: str, convert: str, target_date: Optional[datetime], cache_key: str) -> Optional[Dict]:
+        """내부 API 호출 함수 (중복 방지용)"""
+        try:
+            headers = {
+                "X-CMC_PRO_API_KEY": cls.API_KEY,
+                "Accept": "application/json"
+            }
+            
             async with httpx.AsyncClient(timeout=10.0) as client:
                 # 과거 날짜인 경우 historical 엔드포인트 사용
                 if target_date:
@@ -165,11 +202,6 @@ class CoinMarketCapService:
                         "symbol": symbol,
                         "convert": convert
                     }
-                
-                headers = {
-                    "X-CMC_PRO_API_KEY": cls.API_KEY,
-                    "Accept": "application/json"
-                }
                 
                 response = await client.get(url, headers=headers, params=params)
                 
@@ -296,7 +328,8 @@ class CoinMarketCapService:
                     
                     price_display = result['price_krw'] if result['price_krw'] else result['price_usd']
                     currency_display = convert if result['price_krw'] else "USD"
-                    logger.info(f"✅ 코인마켓캡 API 조회 성공: {symbol} = {price_display:,.2f} {currency_display}")
+                    date_info = f" ({target_date.date()})" if target_date else ""
+                    logger.info(f"✅ 코인마켓캡 API 조회 성공: {symbol} = {price_display:,.2f} {currency_display}{date_info}")
                     return result
                 else:
                     error_text = response.text[:500] if hasattr(response, 'text') else str(response.content[:500])
@@ -348,6 +381,7 @@ class CoinMarketCapService:
     def clear_cache(cls):
         """캐시 초기화"""
         cls._cache.clear()
+        cls._pending_requests.clear()
 
 
 # 전역 인스턴스

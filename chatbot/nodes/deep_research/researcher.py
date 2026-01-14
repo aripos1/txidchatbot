@@ -410,12 +410,16 @@ async def researcher(state: ChatState):
     logger.info("="*60)
     logger.info("Researcher 노드 시작")
     
+    session_id = state.get("session_id", "default")
     search_queries = state.get("search_queries", [])
     current_messages = state.get("messages", [])
     user_messages = [msg for msg in current_messages if isinstance(msg, HumanMessage)]
     
     if not user_messages:
-        return {"web_search_results": []}
+        return {
+            "web_search_results": [],
+            "session_id": session_id  # 세션 ID 명시적으로 포함
+        }
     
     last_user_message = user_messages[-1].content
     msg_lower = last_user_message.lower()
@@ -473,7 +477,10 @@ async def researcher(state: ChatState):
                 }
                 logger.info("⚠️ 365일 제한 초과 - 사용자 안내 메시지 반환")
                 print("[Researcher] ⚠️ 365일 제한 초과 - 안내 메시지 반환", file=sys.stdout, flush=True)
-                return {"web_search_results": [limit_message]}
+                return {
+                    "web_search_results": [limit_message],
+                    "session_id": session_id  # 세션 ID 명시적으로 포함
+                }
             
             # 여러 코인 병렬 조회
             price_results = await _get_prices_from_api(coin_names, is_past_date, requested_date)
@@ -518,7 +525,10 @@ async def researcher(state: ChatState):
                 
                 print(f"[Researcher] ✅ {len(api_results)}개 코인 시세 조회 완료", file=sys.stdout, flush=True)
                 
-                return {"web_search_results": api_results}
+                return {
+                    "web_search_results": api_results,
+                    "session_id": session_id  # 세션 ID 명시적으로 포함
+                }
             else:
                 logger.warning("⚠️ API 조회 실패 - 웹 검색으로 폴백")
         else:
@@ -676,6 +686,7 @@ async def researcher(state: ChatState):
         "messages": current_messages + [researcher_message],
         "search_loop_count": search_loop_count,
         "google_rate_limit_hit": rate_limit_hit,  # Google API 할당량 초과 여부 저장
-        "summarized_results": []
+        "summarized_results": [],
+        "session_id": session_id  # 세션 ID 명시적으로 포함
     }
 

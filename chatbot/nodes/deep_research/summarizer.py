@@ -24,6 +24,7 @@ async def summarizer(state: ChatState):
     ensure_logger_setup()
     logger.info("Summarizer 노드 시작")
     
+    session_id = state.get("session_id", "default")
     web_search_results = state.get("web_search_results", [])
     current_messages = state.get("messages", [])
     
@@ -44,7 +45,8 @@ async def summarizer(state: ChatState):
         logger.info("정확한 데이터 필요 - 요약 건너뛰기")
         return {
             "summarized_results": web_search_results,
-            "messages": current_messages
+            "messages": current_messages,
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
     
     # 요약이 비활성화되어 있거나 결과가 적으면 건너뛰기
@@ -52,7 +54,8 @@ async def summarizer(state: ChatState):
         logger.info(f"요약 건너뛰기: {len(web_search_results)}개 < {config.SUMMARIZATION_THRESHOLD}")
         return {
             "summarized_results": web_search_results,
-            "messages": current_messages
+            "messages": current_messages,
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
     
     try:
@@ -106,12 +109,14 @@ async def summarizer(state: ChatState):
         
         return {
             "summarized_results": summarized_results,
-            "messages": current_messages
+            "messages": current_messages,
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
     except Exception as e:
         logger.error(f"요약 실패: {e}, 원본 사용")
         return {
             "summarized_results": web_search_results,
-            "messages": current_messages
+            "messages": current_messages,
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
 

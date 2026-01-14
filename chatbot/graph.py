@@ -1,7 +1,12 @@
 """
 LangGraph를 사용한 챗봇 그래프 구현 (Router-Specialist 아키텍처)
 분리된 노드들을 조합하여 그래프 구성
+
+멀티 에이전트 모드:
+- USE_TRUE_MULTI_AGENT=true: CoordinatorAgent가 모든 에이전트의 협업을 관리
+- USE_TRUE_MULTI_AGENT=false: 그래프가 에이전트를 순차적으로 호출 (LangGraph 제어)
 """
+import os
 import logging
 from typing import Literal
 from langgraph.graph import StateGraph, END
@@ -114,11 +119,61 @@ def route_from_grader(state: ChatState) -> Literal["planner", "writer", "fallbac
 
 @traceable(name="create_chatbot_graph", run_type="chain")
 def create_chatbot_graph():
-    """LangGraph를 사용한 챗봇 그래프 생성 (Router-Specialist 아키텍처)"""
+    """LangGraph를 사용한 챗봇 그래프 생성 (Router-Specialist 아키텍처 + 멀티 에이전트)"""
     
     # 설정 유효성 검사
     config.validate()
     ensure_logger_setup()
+    
+    # 멀티 에이전트 시스템 초기화 - 모든 에이전트를 레지스트리에 등록
+    from .agents.agent_registry import get_registry
+    from .agents import (
+        get_router_agent,
+        get_faq_agent,
+        get_transaction_agent,
+        get_simple_chat_agent,
+        get_planner_agent,
+        get_researcher_agent,
+        get_grader_agent,
+    )
+    
+    registry = get_registry()
+    
+    # 모든 에이전트 등록
+    registry.register(get_router_agent())
+    registry.register(get_faq_agent())
+    registry.register(get_transaction_agent())
+    registry.register(get_simple_chat_agent())
+    registry.register(get_planner_agent())
+    registry.register(get_researcher_agent())
+    registry.register(get_grader_agent())
+    
+    logger.info(f"✅ 기본 에이전트 등록 완료: {len(registry.list_agents())}개")
+    
+    # 멀티 에이전트 협업 모드 활성화 여부 확인
+    use_true_multi_agent = os.getenv("USE_TRUE_MULTI_AGENT", "false").lower() == "true"
+    
+    if use_true_multi_agent:
+        # 협업 모드: CoordinatorAgent가 에이전트 간 협업을 관리
+        from .agents.coordinator_agent import get_coordinator_agent
+        coordinator_agent = get_coordinator_agent()
+        registry.register(coordinator_agent)
+        
+        logger.info("🤝 멀티 에이전트 협업 모드 활성화: CoordinatorAgent가 에이전트 협업 관리")
+        logger.info(f"✅ 시스템 초기화 완료: 총 {len(registry.list_agents())}개 에이전트")
+        
+        # 간단한 그래프: CoordinatorAgent만 실행
+        workflow = StateGraph(ChatState)
+        workflow.add_node("coordinator", coordinator_agent.process)
+        workflow.set_entry_point("coordinator")
+        workflow.add_edge("coordinator", END)
+        
+        app = workflow.compile()
+        logger.info("✅ 멀티 에이전트 협업 그래프 생성 완료")
+        return app
+    
+    # LangGraph 제어 모드: 그래프가 에이전트를 순차적으로 호출
+    logger.info("📊 LangGraph 제어 모드: 그래프 엣지로 워크플로우 관리")
     
     # ========== 그래프 구성 ==========
     workflow = StateGraph(ChatState)

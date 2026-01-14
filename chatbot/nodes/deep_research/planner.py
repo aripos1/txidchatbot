@@ -32,12 +32,22 @@ async def planner(state: ChatState):
     logger.info("="*60)
     logger.info("Planner 노드 시작: 검색 계획 수립")
     
+    session_id = state.get("session_id", "default")
     current_messages = state.get("messages", [])
     user_messages = [msg for msg in current_messages if isinstance(msg, HumanMessage)]
     
     if not user_messages:
-        logger.warning("Planner: 사용자 메시지 없음")
-        return {"research_plan": "", "search_queries": []}
+        logger.error("❌ Planner: 사용자 메시지 없음 - 상태 손상")
+        print("❌ Planner: 사용자 메시지 없음 - 상태 손상", file=sys.stdout, flush=True)
+        # 빈 결과 대신 fallback 신호를 보냄
+        return {
+            "research_plan": "사용자 메시지를 찾을 수 없어 검색을 진행할 수 없습니다.",
+            "search_queries": [],
+            "grader_score": 0.0,
+            "is_sufficient": False,
+            "search_loop_count": 999,  # 강제 종료를 위해 큰 값 설정
+            "session_id": session_id  # 세션 ID 명시적으로 포함
+        }
     
     last_user_message = user_messages[-1].content
     logger.info(f"사용자 질문: {last_user_message[:100]}...")
@@ -156,7 +166,8 @@ async def planner(state: ChatState):
         
         return {
             "research_plan": research_plan,
-            "search_queries": search_queries
+            "search_queries": search_queries,
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
     except Exception as e:
         logger.error(f"Planner 오류, fallback 사용: {e}")
@@ -173,8 +184,10 @@ async def planner(state: ChatState):
                 f"빗썸 {last_user_message}",
                 f"{last_user_message} 빗썸"
             ]
+        session_id = state.get("session_id", "default")
         return {
             "research_plan": "웹 검색을 통해 관련 정보를 찾습니다.",
-            "search_queries": default_queries[:config.MAX_SEARCH_QUERIES]
+            "search_queries": default_queries[:config.MAX_SEARCH_QUERIES],
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
 

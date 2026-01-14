@@ -122,21 +122,38 @@ class MongoDBClient:
             return None
     
     async def get_conversation_history(self, session_id: str, limit: int = 20):
-        """대화 기록 조회"""
+        """대화 기록 조회 (시간순 정렬)"""
         if self.chat_collection is None:
+            logger.warning(f"[MongoDB] chat_collection이 None입니다. session_id: {session_id}")
             return []
         
         try:
+            logger.info(f"[MongoDB] 대화 기록 조회 시작 - session_id: {session_id}, limit: {limit}")
+            
+            # created_at 기준으로 오름차순 정렬, 같으면 _id로 정렬 (시간순 보장)
             cursor = self.chat_collection.find(
                 {"session_id": session_id}
-            ).sort("created_at", -1).limit(limit)
+            ).sort([("created_at", 1), ("_id", 1)]).limit(limit)
             
             messages = await cursor.to_list(length=limit)
-            # 시간 역순으로 정렬되어 있으므로 뒤집어서 시간순으로 반환
-            messages.reverse()
+            logger.info(f"[MongoDB] 조회 완료 - 메시지 개수: {len(messages)}")
+            
+            if messages:
+                # 모든 메시지의 role 확인
+                roles = [msg.get('role', 'unknown') for msg in messages]
+                user_count = sum(1 for r in roles if r == 'user')
+                assistant_count = sum(1 for r in roles if r == 'assistant')
+                logger.info(f"[MongoDB] 조회된 메시지 role 목록: {roles}")
+                logger.info(f"[MongoDB] user 메시지 개수: {user_count}, assistant 메시지 개수: {assistant_count}")
+                
+                logger.info(f"[MongoDB] 첫 번째 메시지: role={messages[0].get('role')}, created_at={messages[0].get('created_at')}, content 길이={len(messages[0].get('content', ''))}")
+                logger.info(f"[MongoDB] 마지막 메시지: role={messages[-1].get('role')}, created_at={messages[-1].get('created_at')}, content 길이={len(messages[-1].get('content', ''))}")
+            else:
+                logger.warning(f"[MongoDB] 조회된 메시지가 없습니다. session_id: {session_id}")
+            
             return messages
         except Exception as e:
-            logger.error(f"대화 기록 조회 실패: {e}")
+            logger.error(f"[MongoDB] 대화 기록 조회 실패: {e}", exc_info=True)
             return []
     
     async def clear_conversation(self, session_id: str):

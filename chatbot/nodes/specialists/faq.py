@@ -289,6 +289,7 @@ async def faq_specialist(state: ChatState):
     ensure_logger_setup()
     logger.info("FAQ Specialist 시작")
     
+    session_id = state.get("session_id", "default")
     user_message = extract_user_message(state)
     faq_threshold = state.get("faq_threshold", 0.7)
     
@@ -361,11 +362,15 @@ async def faq_specialist(state: ChatState):
             
             return {
                 "messages": [AIMessage(content=response_text)],
-                "db_search_results": []
+                "db_search_results": [],
+                "session_id": session_id  # 세션 ID 명시적으로 포함
             }
         except Exception as e:
             logger.error(f"날짜/시간 답변 생성 실패: {e}")
-            return {"messages": [AIMessage(content=f"오늘 날짜는 {current_date_str}입니다.")]}
+            return {
+                "messages": [AIMessage(content=f"오늘 날짜는 {current_date_str}입니다.")],
+                "session_id": session_id  # 세션 ID 명시적으로 포함
+            }
     
     # DB 검색
     db_results = await _search_db(search_message, user_message)
@@ -431,8 +436,13 @@ async def faq_specialist(state: ChatState):
 1. 빗썸 고객지원 페이지 검색 결과를 우선적으로 참고
 2. 출금 관련 질문의 경우, 원화 출금과 가상자산 출금을 구분하세요
 3. 빗썸 고객지원 페이지 링크를 포함: {config.BITHUMB_SUPPORT_URL}
-4. 친절하고 이해하기 쉽게 설명
-5. 한국어로 답변
+4. **번호 매기기 규칙 (매우 중요)**:
+   - 여러 항목을 나열할 때는 반드시 순차적인 번호를 사용하세요 (1. 2. 3. 4. 5. ...)
+   - 절대로 중첩 번호를 사용하지 마세요 (예: 1.1.1, 1.1.2, 2.1.1 ❌)
+   - 절대로 하위 번호를 사용하지 마세요 (예: 1.1, 1.2, 2.1 ❌)
+   - 번호는 1부터 시작하여 순차적으로 증가해야 합니다 (1. 2. 3. ✅)
+5. 친절하고 이해하기 쉽게 설명
+6. 한국어로 답변
 """
         
         try:
@@ -446,7 +456,8 @@ async def faq_specialist(state: ChatState):
             return {
                 "messages": [AIMessage(content=response_text)],
                 "db_search_results": support_results + (db_results or []),
-                "search_queries": [search_message]  # 검색 쿼리 정보 추가
+                "search_queries": [search_message],  # 검색 쿼리 정보 추가
+                "session_id": session_id  # 세션 ID 명시적으로 포함
             }
         except Exception as e:
             return handle_node_error(e, "faq_specialist", state)
@@ -486,7 +497,8 @@ FAQ 정보:
             return {
                 "messages": [AIMessage(content=response_text)],
                 "db_search_results": db_results,
-                "search_queries": [search_message]  # 검색 쿼리 정보 추가
+                "search_queries": [search_message],  # 검색 쿼리 정보 추가
+                "session_id": session_id  # 세션 ID 명시적으로 포함
             }
         except Exception as e:
             return handle_node_error(e, "faq_specialist", state)
@@ -497,6 +509,7 @@ FAQ 정보:
         return {
             "db_search_results": [],
             "needs_web_search": True,
-            "question_type": QuestionType.HYBRID
+            "question_type": QuestionType.HYBRID,
+            "session_id": session_id  # 세션 ID 명시적으로 포함
         }
 

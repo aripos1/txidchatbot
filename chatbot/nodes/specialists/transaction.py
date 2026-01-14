@@ -30,6 +30,7 @@ async def transaction_specialist(state: ChatState):
     ensure_logger_setup()
     logger.info("Transaction Specialist 시작")
     
+    session_id = state.get("session_id", "default")
     tx_hash = state.get("transaction_hash")
     logger.info(f"Transaction Specialist - state에서 가져온 transaction_hash: {tx_hash if tx_hash else 'None'} (길이: {len(tx_hash) if tx_hash else 0}자)")
     
@@ -42,7 +43,10 @@ async def transaction_specialist(state: ChatState):
     if not tx_hash:
         logger.warning("트랜잭션 해시를 찾을 수 없음")
         user_message = extract_user_message(state)
-        return {"messages": [AIMessage(content=f"트랜잭션 해시를 찾을 수 없습니다. 입력하신 내용: {user_message[:100]}...\n\n트랜잭션 해시(64자 hex 또는 Base64 형식)를 입력해주세요.")]}
+        return {
+            "messages": [AIMessage(content=f"트랜잭션 해시를 찾을 수 없습니다. 입력하신 내용: {user_message[:100]}...\n\n트랜잭션 해시(64자 hex 또는 Base64 형식)를 입력해주세요.")],
+            "session_id": session_id  # 세션 ID 명시적으로 포함
+        }
     
     try:
         # 트랜잭션 조회 방법 결정
@@ -195,12 +199,19 @@ async def transaction_specialist(state: ChatState):
             
             return {
                 "messages": [AIMessage(content=result_text)],
-                "transaction_results": tx_result
+                "transaction_results": tx_result,
+                "session_id": session_id  # 세션 ID 명시적으로 포함
             }
         else:
             logger.warning(f"트랜잭션 조회 결과 없음. tx_result 타입: {type(tx_result)}, 값: {tx_result}")
-            return {"messages": [AIMessage(content=f"트랜잭션 해시 '{tx_hash}'에 대한 조회 결과를 찾을 수 없습니다.\n\n지원되는 모든 체인에서 조회했지만 결과를 찾지 못했습니다.\n\n트랜잭션 해시 형식을 확인해주세요. (예: 64자 hex 문자열 또는 Base64 형식)")]}
+            return {
+                "messages": [AIMessage(content=f"트랜잭션 해시 '{tx_hash}'에 대한 조회 결과를 찾을 수 없습니다.\n\n지원되는 모든 체인에서 조회했지만 결과를 찾지 못했습니다.\n\n트랜잭션 해시 형식을 확인해주세요. (예: 64자 hex 문자열 또는 Base64 형식)")],
+                "session_id": session_id  # 세션 ID 명시적으로 포함
+            }
     except Exception as e:
         logger.error(f"트랜잭션 조회 실패: {e}", exc_info=True)
-        return {"messages": [AIMessage(content=f"트랜잭션 조회 중 오류가 발생했습니다: {str(e)}\n\n지원되는 체인: Bitcoin, Ethereum, BNB Smart Chain, Polygon, Tron, Arbitrum, Optimism, Solana, TON 등 31개 체인")]}
+        return {
+            "messages": [AIMessage(content=f"트랜잭션 조회 중 오류가 발생했습니다: {str(e)}\n\n지원되는 체인: Bitcoin, Ethereum, BNB Smart Chain, Polygon, Tron, Arbitrum, Optimism, Solana, TON 등 31개 체인")],
+            "session_id": session_id  # 세션 ID 명시적으로 포함
+        }
 

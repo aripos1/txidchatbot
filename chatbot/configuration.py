@@ -50,6 +50,9 @@ class ChatbotConfiguration:
     GOOGLE_API_KEY: Optional[str] = os.getenv("GOOGLE_API_KEY")
     GOOGLE_CX: Optional[str] = os.getenv("GOOGLE_CX")
     
+    # Tavily Search API
+    TAVILY_API_KEY: Optional[str] = os.getenv("TAVILY_API_KEY")
+    
     # CoinMarketCap API (시세 조회용)
     COINMARKETCAP_API_KEY: Optional[str] = os.getenv("COINMARKETCAP_API_KEY")
     

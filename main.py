@@ -1971,6 +1971,13 @@ async def chat_stream(request: Request):
             response_nodes = {"writer", "simple_chat_specialist", "faq_specialist", "intent_clarifier", "transaction_specialist"}
             
             try:
+                # User 메시지를 먼저 저장 (Assistant보다 먼저 저장되도록)
+                try:
+                    await mongodb_client.save_message(session_id, "user", message)
+                    logger.info(f"[STREAM] User 메시지 저장 완료 (session_id: {session_id})")
+                except Exception as e:
+                    logger.error(f"[STREAM] User 메시지 저장 실패: {e}")
+                
                 # 시작 이벤트
                 yield f"data: {json.dumps({'type': 'start', 'session_id': session_id})}\n\n"
                 
@@ -2049,21 +2056,41 @@ async def chat_stream(request: Request):
                         # 노드 이름 추출
                         node_name = event_name.split("/")[-1] if "/" in event_name else event_name
                         
+                        logger.info(f"[STREAM] on_chain_end: node_name={node_name}, event_name={event_name}")
+                        
                         # 노드 완료 시 검색 정보 추출 및 전송 (공통 함수 사용)
                         output = event.get("data", {}).get("output", {})
+                        
+                        # coordinator 노드의 output 로깅 (디버깅용)
+                        if node_name == "coordinator":
+                            logger.info(f"[STREAM] coordinator output 타입: {type(output)}")
+                            if isinstance(output, dict):
+                                logger.info(f"[STREAM] coordinator output keys: {list(output.keys())}")
+                                if "messages" in output:
+                                    logger.info(f"[STREAM] coordinator messages 개수: {len(output.get('messages', []))}")
+                                    if output.get("messages"):
+                                        last_msg = output["messages"][-1]
+                                        content = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+                                        logger.info(f"[STREAM] coordinator 마지막 메시지 길이: {len(content) if content else 0}")
+                                        logger.info(f"[STREAM] coordinator 마지막 메시지 미리보기: {content[:200] if content else 'None'}")
+                        
                         search_info = extract_search_info_from_node_output(node_name, output)
                         
                         # 검색 정보가 있으면 전송
                         if search_info:
                             yield f"data: {json.dumps({'type': 'node_search', 'node': node_name, 'search_info': search_info})}\n\n"
                         
-                        if node_name in response_nodes:
+                        # coordinator 노드도 응답 처리 (transaction_specialist의 결과를 포함)
+                        if node_name in response_nodes or node_name == "coordinator":
+                            logger.info(f"[STREAM] {node_name} 응답 처리 시작, output 타입: {type(output)}")
                             # 최종 응답 추출
                             if isinstance(output, dict):
                                 messages = output.get("messages", [])
+                                logger.info(f"[STREAM] {node_name} messages 개수: {len(messages) if messages else 0}")
                                 if messages:
                                     last_msg = messages[-1]
                                     content = last_msg.content if hasattr(last_msg, "content") else str(last_msg)
+                                    logger.info(f"[STREAM] {node_name} content 길이: {len(content) if content else 0}")
                                     if content:
                                         # JSON 구조 제거
                                         cleaned_content = content.strip()
@@ -2095,15 +2122,38 @@ async def chat_stream(request: Request):
                                         
                                         final_response = cleaned_content
                                         
-                                        # transaction_specialist는 LLM을 사용하지 않으므로 즉시 토큰으로 전송
-                                        if node_name == "transaction_specialist":
+                                        # transaction_specialist 또는 트랜잭션 응답을 포함한 coordinator는 즉시 토큰으로 전송
+                                        is_transaction_response = (
+                                            node_name == "transaction_specialist" or 
+                                            (node_name == "coordinator" and ("트랜잭션" in cleaned_content or "블록 탐색기" in cleaned_content or "etherscan.io" in cleaned_content.lower()))
+                                        )
+                                        
+                                        if is_transaction_response:
+                                            logger.info(f"[STREAM] ===== {node_name} 트랜잭션 응답 전송 시작 =====")
+                                            logger.info(f"[STREAM] {node_name} 응답 길이: {len(cleaned_content)}")
+                                            logger.info(f"[STREAM] {node_name} 응답 미리보기: {cleaned_content[:200]}")
+                                            
+                                            # 먼저 node 이벤트 전송 (프론트엔드에서 currentResponseNode 설정용)
+                                            # coordinator 응답인 경우 transaction_specialist로 변환
+                                            node_to_send = "transaction_specialist" if node_name == "coordinator" else node_name
+                                            display_name = node_display_names.get(node_to_send, node_to_send)
+                                            yield f"data: {json.dumps({'type': 'node', 'node': node_to_send, 'display': display_name})}\n\n"
+                                            logger.info(f"[STREAM] {node_name} node 이벤트 전송 완료 (as {node_to_send})")
+                                            
                                             # 토큰으로 스트리밍 (전체 내용을 한 번에 전송)
                                             yield f"data: {json.dumps({'type': 'token', 'content': cleaned_content})}\n\n"
-                                            accumulated_content[node_name] = cleaned_content
+                                            accumulated_content[node_to_send] = cleaned_content
+                                            logger.info(f"[STREAM] ===== {node_name} 트랜잭션 응답 전송 완료 =====")
                                         else:
                                             # 누적된 콘텐츠가 없으면 최종 응답 사용
                                             if node_name in accumulated_content and not accumulated_content[node_name]:
                                                 accumulated_content[node_name] = cleaned_content
+                                    else:
+                                        logger.warning(f"[STREAM] {node_name} content가 비어있음")
+                                else:
+                                    logger.warning(f"[STREAM] {node_name} messages가 비어있음")
+                            else:
+                                logger.warning(f"[STREAM] {node_name} output이 dict가 아님: {type(output)}")
                     
                     # 그래프 완료 이벤트
                     elif event_type == "on_chain_end" and event_name == "__end__":
@@ -2165,13 +2215,7 @@ async def chat_stream(request: Request):
                 # 완료 이벤트
                 yield f"data: {json.dumps({'type': 'done', 'final_response': final_response})}\n\n"
                 
-                # MongoDB에 대화 저장
-                try:
-                    await mongodb_client.save_message(session_id, "user", message)
-                    if final_response:
-                        await mongodb_client.save_message(session_id, "assistant", final_response)
-                except Exception as e:
-                    logger.error(f"[STREAM] 메시지 저장 실패: {e}")
+                # 참고: User 메시지는 그래프 시작 전에, Assistant 메시지는 save_response 노드에서 저장됨
                 
             except Exception as e:
                 logger.error(f"[STREAM] 스트리밍 중 오류: {e}", exc_info=True)

@@ -35,6 +35,7 @@ async def simple_chat_specialist(state: ChatState):
     ensure_logger_setup()
     logger.info("SimpleChat Specialist 시작")
     
+    session_id = state.get("session_id", "default")
     user_message = extract_user_message(state)
     
     # 대화 맥락 추출
@@ -110,7 +111,10 @@ async def simple_chat_specialist(state: ChatState):
         logger.info("SimpleChat Specialist 완료")
         print("="*60, file=sys.stdout, flush=True)
         
-        return {"messages": [AIMessage(content=response_text)]}
+        return {
+            "messages": [AIMessage(content=response_text)],
+            "session_id": session_id  # 세션 ID 명시적으로 포함
+        }
     except Exception as e:
         return handle_node_error(e, "simple_chat_specialist", state)
 

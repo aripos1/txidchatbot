@@ -81,6 +81,7 @@ async def check_db(state: ChatState):
     return {
         "db_search_results": search_results,
         "needs_deep_research": needs_deep_research,
-        "messages": history_messages + new_user_messages
+        "messages": history_messages + new_user_messages,
+        "session_id": session_id  # 세션 ID 명시적으로 포함
     }
 
