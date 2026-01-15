@@ -780,6 +780,15 @@ function formatMessage(text) {
         return placeholder;
     });
     
+    // 마크다운 이미지 처리 (![alt](url)) -> <img> 태그로 변환
+    text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, url) => {
+        // URL 검증 및 이스케이프
+        const safeUrl = url.trim();
+        const safeAlt = alt.trim() || '이미지';
+        // 이미지 태그 생성 (반응형 스타일 포함)
+        return `<div class="faq-image-container"><img src="${safeUrl}" alt="${safeAlt}" class="faq-image" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"><div class="faq-image-error" style="display:none;">이미지를 불러올 수 없습니다: <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">링크</a></div></div>`;
+    });
+    
     // 번호 리스트 처리
     text = text.replace(/((?:^\s*\d+\.\s+.+?(?:\n|$))+)/gm, (match) => {
         const lines = match.split('\n');

@@ -175,6 +175,22 @@ async def _search_db(search_message: str, user_message: str) -> list:
         all_results.sort(key=lambda x: x.get('score', 0), reverse=True)
         final_results = all_results[:final_limit]
         
+        # 검색 결과에 이미지 정보 추가 (메타데이터에서 추출)
+        images_found_count = 0
+        for result in final_results:
+            metadata = result.get('metadata', {})
+            if metadata.get('images'):
+                # 이미지 정보를 결과에 직접 추가
+                images = metadata['images']
+                result['images'] = images
+                images_found_count += 1
+                logger.info(f"이미지 정보 발견: {len(images)}개 이미지 (아티클: {metadata.get('article_id', 'N/A')})")
+        
+        if images_found_count > 0:
+            logger.info(f"FAQ 검색 결과 중 {images_found_count}개 아티클에 이미지 정보 포함")
+        else:
+            logger.info("FAQ 검색 결과에 이미지 정보 없음")
+        
         logger.info(f"FAQ 하이브리드 검색 완료: {len(final_results)}개 결과")
         return final_results
     except Exception as e:
@@ -525,7 +541,40 @@ async def faq_specialist(state: ChatState):
     elif db_results and has_good_db_results:
         logger.info(f"✅ DB 결과 사용 (점수: {db_best_score:.4f})")
         
-        context = "\n".join([f"[FAQ {i+1}]\n{result.get('text', '')}" for i, result in enumerate(db_results[:3])])
+        # FAQ 정보와 이미지 정보를 함께 구성
+        context_parts = []
+        images_info = []
+        
+        for i, result in enumerate(db_results[:3], 1):
+            faq_text = result.get('text', '')
+            context_parts.append(f"[FAQ {i}]\n{faq_text}")
+            
+            # 이미지 정보 추출
+            images = result.get('images', [])
+            if images:
+                logger.info(f"FAQ {i}에 이미지 {len(images)}개 발견 - 프롬프트에 포함")
+                images_info.append(f"\n[FAQ {i} 참고 이미지]")
+                for img in images:
+                    img_parts = []
+                    if img.get('alt'):
+                        img_parts.append(f"설명: {img['alt']}")
+                    if img.get('caption'):
+                        img_parts.append(f"캡션: {img['caption']}")
+                    if img.get('context'):
+                        img_parts.append(f"주변 설명: {img['context']}")
+                    
+                    img_desc = ' | '.join(img_parts) if img_parts else "이미지"
+                    images_info.append(f"- {img['url']} ({img_desc})")
+            else:
+                # 이미지가 없는 경우도 로그로 확인
+                metadata = result.get('metadata', {})
+                if metadata.get('images'):
+                    logger.warning(f"FAQ {i}: metadata에 images가 있지만 result['images']가 없음")
+                else:
+                    logger.debug(f"FAQ {i}: 이미지 정보 없음 (article_id: {metadata.get('article_id', 'N/A')})")
+        
+        context = "\n".join(context_parts)
+        images_section = "\n".join(images_info) if images_info else ""
         
         faq_prompt = f"""
 다음 FAQ 정보를 바탕으로 사용자 질문에 답변하세요.
@@ -538,12 +587,19 @@ async def faq_specialist(state: ChatState):
 
 FAQ 정보:
 {context}
+{images_section}
 
 답변 규칙:
 1. FAQ 정보를 바탕으로 정확하게 답변
 2. 친절하고 이해하기 쉽게 설명
 3. 빗썸 고객지원 페이지 링크를 포함: {config.BITHUMB_SUPPORT_URL}
-4. **번호 매기기 규칙 (매우 중요)**:
+4. **이미지 처리 규칙**:
+   - FAQ에 참고 이미지가 있는 경우, 답변에 이미지 링크를 마크다운 형식으로 포함하세요
+   - 마크다운 형식: ![이미지 설명](이미지URL)
+   - 예시: ![로그인 화면](https://support.bithumb.com/images/login.png)
+   - 이미지 설명이 있는 경우 alt 텍스트로 사용하세요
+   - 여러 이미지가 있는 경우 적절한 위치에 배치하세요
+5. **번호 매기기 규칙 (매우 중요)**:
    - 여러 항목을 나열할 때는 반드시 순차적인 번호를 사용하세요 (1. 2. 3. 4. 5. ...)
    - 절대로 중첩 번호를 사용하지 마세요 (예: 1.1.1, 1.1.2, 2.1.1 ❌)
    - 절대로 하위 번호를 사용하지 마세요 (예: 1.1, 1.2, 2.1 ❌)
@@ -551,7 +607,7 @@ FAQ 정보:
    - 예시:
      * 올바른 형식: "1. 첫 번째 항목\n2. 두 번째 항목\n3. 세 번째 항목"
      * 잘못된 형식: "1.1.1 첫 번째 항목\n1.1.2 두 번째 항목" (절대 사용 금지)
-5. 한국어로 답변
+6. 한국어로 답변
 """
         
         try:
