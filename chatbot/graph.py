@@ -222,7 +222,7 @@ def create_chatbot_graph():
         
         # 모든 노드 등록 (LangGraph SSE 지원)
         workflow.add_node("coordinator", coordinator_agent.process)
-        workflow.add_node("router", router)
+        # router 노드는 제거 - CoordinatorAgent가 직접 라우팅 처리
         workflow.add_node("intent_clarifier", intent_clarifier)
         workflow.add_node("simple_chat_specialist", simple_chat_specialist)
         workflow.add_node("faq_specialist", faq_specialist)
@@ -235,13 +235,13 @@ def create_chatbot_graph():
         workflow.add_node("writer", writer)
         workflow.add_node("save_response", save_response)
         
-        # 엔트리 포인트: coordinator → router
+        # 엔트리 포인트: coordinator (라우팅 포함)
         workflow.set_entry_point("coordinator")
-        workflow.add_edge("coordinator", "router")
         
-        # Router에서 전문가로 라우팅 (조건부 엣지)
+        # Coordinator에서 직접 전문가로 라우팅 (조건부 엣지)
+        # CoordinatorAgent가 router 로직을 직접 실행하므로 router 노드 없이 바로 라우팅
         workflow.add_conditional_edges(
-            "router",
+            "coordinator",
             route_to_specialist,
             {
                 "intent_clarifier": "intent_clarifier",

@@ -425,10 +425,9 @@ class VectorStore:
     async def hybrid_search(
         self, 
         query: str, 
-        limit: Optional[int] = None,
-        use_rrf: bool = False
+        limit: Optional[int] = None
     ) -> List[Dict]:
-        """하이브리드 검색: 벡터 검색 + 키워드 검색 결합"""
+        """하이브리드 검색: 벡터 검색 + 키워드 검색 결합 (가중치 결합 방식)"""
         if self.collection is None:
             logger.error("MongoDB가 연결되지 않았습니다.")
             return []
@@ -436,7 +435,6 @@ class VectorStore:
         # 설정값 가져오기
         k_weight = config.HYBRID_K_WEIGHT
         s_weight = config.HYBRID_S_WEIGHT
-        rrf_k = config.RRF_K
         final_limit = limit or config.FINAL_TOP_K
         
         # 각 검색 수행 (충분한 결과를 위해 limit * 2로 검색)
@@ -456,65 +454,16 @@ class VectorStore:
         if not vector_results:
             return keyword_results[:final_limit]
         
-        # 결과 통합 (RRF 또는 가중치 결합)
-        if use_rrf:
-            # RRF(Reciprocal Rank Fusion) 사용
-            combined_results = self._combine_results_rrf(
-                vector_results, keyword_results, rrf_k
-            )
-        else:
-            # 가중치 결합 사용
-            combined_results = self._combine_results_weighted(
-                vector_results, keyword_results, k_weight, s_weight
-            )
+        # 가중치 결합 방식으로 결과 통합
+        combined_results = self._combine_results_weighted(
+            vector_results, keyword_results, k_weight, s_weight
+        )
         
         # 최종 결과 반환
         final_results = combined_results[:final_limit]
         logger.info(f"하이브리드 검색 완료: 벡터 {len(vector_results)}개, 키워드 {len(keyword_results)}개 → 최종 {len(final_results)}개")
         
         return final_results
-    
-    def _combine_results_rrf(
-        self, 
-        vector_results: List[Dict], 
-        keyword_results: List[Dict], 
-        rrf_k: int
-    ) -> List[Dict]:
-        """RRF(Reciprocal Rank Fusion)를 사용한 결과 결합"""
-        # 문서 ID를 키로 하는 딕셔너리 생성
-        doc_scores: Dict[str, Dict] = {}
-        
-        # 벡터 검색 결과 점수 계산
-        for rank, result in enumerate(vector_results, start=1):
-            doc_id = result.get("source", "") + "|" + result.get("text", "")[:50]
-            rrf_score = 1.0 / (rrf_k + rank)
-            if doc_id not in doc_scores:
-                doc_scores[doc_id] = {
-                    "text": result.get("text", ""),
-                    "source": result.get("source", ""),
-                    "metadata": result.get("metadata", {}),
-                    "score": 0.0
-                }
-            doc_scores[doc_id]["score"] += rrf_score
-        
-        # 키워드 검색 결과 점수 계산
-        for rank, result in enumerate(keyword_results, start=1):
-            doc_id = result.get("source", "") + "|" + result.get("text", "")[:50]
-            rrf_score = 1.0 / (rrf_k + rank)
-            if doc_id not in doc_scores:
-                doc_scores[doc_id] = {
-                    "text": result.get("text", ""),
-                    "source": result.get("source", ""),
-                    "metadata": result.get("metadata", {}),
-                    "score": 0.0
-                }
-            doc_scores[doc_id]["score"] += rrf_score
-        
-        # 점수 기준으로 정렬
-        combined = list(doc_scores.values())
-        combined.sort(key=lambda x: x["score"], reverse=True)
-        
-        return combined
     
     def _combine_results_weighted(
         self, 

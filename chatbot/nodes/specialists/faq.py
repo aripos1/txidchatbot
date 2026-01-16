@@ -150,8 +150,8 @@ async def _search_db(search_message: str, user_message: str) -> list:
         
         for query in search_queries[:2]:
             try:
-                # 하이브리드 검색 수행 (가중치 결합 방식 사용)
-                results = await vector_store.hybrid_search(query, limit=final_limit, use_rrf=False)
+                # 하이브리드 검색 수행 (가중치 결합 방식)
+                results = await vector_store.hybrid_search(query, limit=final_limit)
                 for result in results:
                     result_text = result.get('text', '')
                     if result_text and result_text not in seen_texts:

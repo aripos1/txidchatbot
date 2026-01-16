@@ -124,12 +124,28 @@ async def writer(state: ChatState):
         final_search_results = []
         processing_note = ""
     
+    # Writer에 전달할 검색 결과 개수 제한 (토큰 제한 방지)
+    # 점수가 낮거나 Fallback 모드일 때는 더 적은 결과만 전달
+    if is_fallback or grader_score < 0.5:
+        max_results_for_writer = 10  # Fallback 또는 낮은 점수: 최대 10개
+    elif grader_score < 0.7:
+        max_results_for_writer = 15  # 중간 점수: 최대 15개
+    else:
+        max_results_for_writer = 20  # 높은 점수: 최대 20개
+    
+    # 검색 결과 개수 제한
+    if len(final_search_results) > max_results_for_writer:
+        logger.warning(f"⚠️ 검색 결과 {len(final_search_results)}개 → {max_results_for_writer}개로 제한 (토큰 제한 방지)")
+        final_search_results = final_search_results[:max_results_for_writer]
+    
     # 컨텍스트 구성
     context_parts = []
     
     if db_search_results:
         context_parts.append("=== FAQ 데이터베이스 검색 결과 ===\n")
-        for i, result in enumerate(db_search_results, 1):
+        # DB 결과도 제한 (최대 5개)
+        limited_db_results = db_search_results[:5]
+        for i, result in enumerate(limited_db_results, 1):
             context_parts.append(f"[FAQ {i}]\n{result.get('text', '')}\n")
     
     if is_fallback:
@@ -153,13 +169,15 @@ async def writer(state: ChatState):
     
     context = "\n".join(context_parts) if context_parts else ""
     
-    # 시세 비교 질문 감지
-    user_query_for_comparison = ""
+    # 사용자 질문 추출
+    user_query = ""
     if current_messages:
         user_msgs = [msg for msg in current_messages if isinstance(msg, HumanMessage)]
         if user_msgs:
-            user_query_for_comparison = user_msgs[-1].content.lower()
+            user_query = user_msgs[-1].content
     
+    # 시세 비교 질문 감지
+    user_query_for_comparison = user_query.lower() if user_query else ""
     is_price_comparison = any(keyword in user_query_for_comparison for keyword in [
         '비교', '차이', '변화', '변동', '상승', '하락'
     ]) and any(keyword in user_query_for_comparison for keyword in config.PRICE_KEYWORDS)
@@ -173,13 +191,18 @@ async def writer(state: ChatState):
             system_prompt_content = f"""
 당신은 블록체인과 빗썸 이용 방법에 대하여 도와주는 친절한 챗봇입니다.
 
+**매우 중요: 사용자 질문**
+사용자가 다음 질문을 했습니다: "{user_query}"
+
 **중요: Fallback 모드 (검색 결과 있음)**
 검색 결과가 {len(web_search_results)}개 있습니다. 최대한 활용하세요.
 
 답변 규칙:
-1. 검색 결과의 정보를 최대한 활용
-2. 불완전해도 부분 정보 제공
-3. 빗썸 공식 홈페이지: {config.BITHUMB_HOME_URL} 안내
+1. **반드시 사용자 질문("{user_query}")에 직접 답변하세요**
+2. 검색 결과의 정보를 최대한 활용하되, 사용자 질문과 관련된 정보만 사용하세요
+3. 사용자 질문과 무관한 정보는 포함하지 마세요
+4. 불완전해도 부분 정보 제공
+5. 빗썸 공식 홈페이지: {config.BITHUMB_HOME_URL} 안내
 
 {fallback_context}
 """
@@ -187,12 +210,16 @@ async def writer(state: ChatState):
             system_prompt_content = f"""
 당신은 블록체인과 빗썸 이용 방법에 대하여 도와주는 친절한 챗봇입니다.
 
+**매우 중요: 사용자 질문**
+사용자가 다음 질문을 했습니다: "{user_query}"
+
 **Fallback 모드**
 신뢰할 수 있는 정보를 찾지 못했습니다.
 
 답변 규칙:
-1. "죄송합니다. 현재 신뢰할 수 있는 정보를 찾을 수 없습니다."
-2. 빗썸 공식 홈페이지: {config.BITHUMB_HOME_URL} 안내
+1. **반드시 사용자 질문("{user_query}")에 직접 답변하세요**
+2. "죄송합니다. 현재 신뢰할 수 있는 정보를 찾을 수 없습니다."
+3. 빗썸 공식 홈페이지: {config.BITHUMB_HOME_URL} 안내
 
 {fallback_context}
 """
@@ -209,14 +236,27 @@ async def writer(state: ChatState):
             link_rules_prompt=config.get_link_rules_prompt()
         )
         
+        # 사용자 질문을 명시적으로 프롬프트에 추가
+        user_question_section = f"""
+**매우 중요: 사용자 질문**
+사용자가 다음 질문을 했습니다: "{user_query}"
+
+**답변 규칙:**
+1. **반드시 위의 사용자 질문에 직접 답변하세요**
+2. 검색 결과에서 사용자 질문과 관련된 정보만 사용하세요
+3. 사용자 질문과 무관한 정보는 포함하지 마세요
+4. 검색 결과에 사용자 질문과 관련된 정보가 없으면, 그 사실을 명확히 알려주세요
+
+"""
+        
         if is_price_comparison:
             comparison_instruction = get_price_comparison_instruction().format(
                 yesterday_date_str=yesterday_date_str,
                 yesterday_date_iso=yesterday_date_iso
             )
-            system_prompt_content = base_prompt + comparison_instruction
+            system_prompt_content = base_prompt + user_question_section + comparison_instruction
         else:
-            system_prompt_content = base_prompt
+            system_prompt_content = base_prompt + user_question_section
     
     system_prompt = SystemMessage(content=system_prompt_content)
     

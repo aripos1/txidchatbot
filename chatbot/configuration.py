@@ -66,8 +66,6 @@ class ChatbotConfiguration:
     HYBRID_K_WEIGHT: float = float(os.getenv("HYBRID_K_WEIGHT", "0.7"))
     # 시맨틱 검색(Vector) 가중치 (0.0 ~ 1.0)
     HYBRID_S_WEIGHT: float = float(os.getenv("HYBRID_S_WEIGHT", "0.3"))
-    # RRF(Reciprocal Rank Fusion) 순위 조절 상수
-    RRF_K: int = int(os.getenv("RRF_K", "60"))
     # 최종적으로 Writer에게 보낼 최상위 결과 개수
     FINAL_TOP_K: int = int(os.getenv("FINAL_TOP_K", "5"))
     
