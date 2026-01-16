@@ -111,6 +111,35 @@ function createThinkingProcessUI(steps) {
             stepHTML += `<div class="thinking-step-content">${step.content}</div>`;
         }
         
+        // 검색 결과 링크 추가
+        if (step.searchInfo) {
+            const searchInfo = step.searchInfo;
+            const links = [];
+            
+            // DB 검색 결과 링크
+            if (searchInfo.db_results && searchInfo.db_results.length > 0) {
+                searchInfo.db_results.forEach((result, idx) => {
+                    if (result.url) {
+                        links.push(`<a href="${result.url}" target="_blank" rel="noopener noreferrer" class="thinking-link">${result.title || 'FAQ 결과 ' + (idx + 1)}</a>`);
+                    }
+                });
+            }
+            
+            // 웹 검색 결과 링크
+            if (searchInfo.web_results && searchInfo.web_results.length > 0) {
+                searchInfo.web_results.forEach((result, idx) => {
+                    if (result.url) {
+                        const title = result.title || '웹 결과 ' + (idx + 1);
+                        links.push(`<a href="${result.url}" target="_blank" rel="noopener noreferrer" class="thinking-link">${title}</a>`);
+                    }
+                });
+            }
+            
+            if (links.length > 0) {
+                stepHTML += `<div class="thinking-links">${links.join('')}</div>`;
+            }
+        }
+        
         stepDiv.innerHTML = stepHTML;
         content.appendChild(stepDiv);
     });
@@ -174,7 +203,7 @@ async function loadChatHistory() {
             });
         }
     } catch (error) {
-        console.error('대화 기록 불러오기 실패:', error);
+        // console.error('대화 기록 불러오기 실패:', error);
     }
 }
 
@@ -227,6 +256,9 @@ async function sendMessageStreaming(message, sendBtn) {
     messagesContainer.appendChild(messageDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
     
+    // 사용자 질문을 응답에서 제거하기 위한 변수 저장
+    const userMessageNormalized = message.trim().toLowerCase();
+    
     let thinkingProcessUI = null;
     let thinkingSteps = [];
     let shouldShowThinkingProcess = false;
@@ -237,6 +269,8 @@ async function sendMessageStreaming(message, sendBtn) {
     let hasReceivedToken = false;
     let jsonBlocks = [];
     let nodeHistory = [];
+    let doneReceived = false;  // done 이벤트 수신 여부 추적
+    let finalResponseFromServer = '';  // done 이벤트의 final_response 저장
     
     // 검색 정보를 "생각하는 과정" 콘텐츠로 변환 (간소화 + 필수 정보 표시)
     function createThinkingStepContent(nodeName, nodeDisplay, searchInfo) {
@@ -368,6 +402,35 @@ async function sendMessageStreaming(message, sendBtn) {
                         stepHTML += `<div class="thinking-step-content">${step.content}</div>`;
                     }
                     
+                    // 검색 결과 링크 추가
+                    if (step.searchInfo) {
+                        const searchInfo = step.searchInfo;
+                        const links = [];
+                        
+                        // DB 검색 결과 링크
+                        if (searchInfo.db_results && searchInfo.db_results.length > 0) {
+                            searchInfo.db_results.forEach((result, idx) => {
+                                if (result.url) {
+                                    links.push(`<a href="${result.url}" target="_blank" rel="noopener noreferrer" class="thinking-link">${result.title || 'FAQ 결과 ' + (idx + 1)}</a>`);
+                                }
+                            });
+                        }
+                        
+                        // 웹 검색 결과 링크
+                        if (searchInfo.web_results && searchInfo.web_results.length > 0) {
+                            searchInfo.web_results.forEach((result, idx) => {
+                                if (result.url) {
+                                    const title = result.title || '웹 결과 ' + (idx + 1);
+                                    links.push(`<a href="${result.url}" target="_blank" rel="noopener noreferrer" class="thinking-link">${title}</a>`);
+                                }
+                            });
+                        }
+                        
+                        if (links.length > 0) {
+                            stepHTML += `<div class="thinking-links">${links.join('')}</div>`;
+                        }
+                    }
+                    
                     stepDiv.innerHTML = stepHTML;
                     content.appendChild(stepDiv);
                 });
@@ -394,113 +457,137 @@ async function sendMessageStreaming(message, sendBtn) {
         
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        let buffer = '';  // SSE 이벤트 버퍼 (불완전한 이벤트 보관)
         
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
             
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
+            if (value) {
+                const chunk = decoder.decode(value, { stream: !done });
+                buffer += chunk;
+            }
             
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    try {
-                        const data = JSON.parse(line.slice(6));
-                        
-                        if (data.type === 'token') {
-                            fullContent += data.content;
-                            
-                            let jsonStart = fullContent.indexOf('{');
-                            const foundJsonBlocks = [];
-                            
-                            while (jsonStart !== -1) {
-                                let braceCount = 0;
-                                let jsonEnd = -1;
+            // SSE 이벤트는 \n\n로 구분됨
+            let eventEnd = buffer.indexOf('\n\n');
+            while (eventEnd !== -1) {
+                const eventText = buffer.slice(0, eventEnd).trim();
+                buffer = buffer.slice(eventEnd + 2);
+                
+                if (eventText) {
+                    // 이벤트에서 data: 줄 찾기
+                    const lines = eventText.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const jsonStr = line.slice(6);  // 'data: ' 제거
+                                // console.log('[SSE] 라인 파싱 시도:', jsonStr.substring(0, 150));
+                                const data = JSON.parse(jsonStr);
+                                // console.log('[SSE] 이벤트 파싱 성공 - type:', data.type);
                                 
-                                for (let i = jsonStart; i < fullContent.length; i++) {
-                                    if (fullContent[i] === '{') braceCount++;
-                                    if (fullContent[i] === '}') braceCount--;
-                                    if (braceCount === 0) {
-                                        jsonEnd = i + 1;
-                                        break;
-                                    }
-                                }
-                                
-                                if (jsonEnd > jsonStart) {
-                                    const jsonText = fullContent.substring(jsonStart, jsonEnd);
-                                    
-                                    if (jsonText.includes('"search_queries"') || 
-                                        jsonText.includes('"research_plan"') || 
-                                        jsonText.includes('"priority"') ||
-                                        jsonText.includes('"score"') || 
-                                        jsonText.includes('"is_sufficient"') || 
-                                        jsonText.includes('"feedback"') ||
-                                        jsonText.includes('"missing_information"')) {
+                                    if (data.type === 'token') {
+                                        // console.log('[TOKEN] 받음:', data.content.substring(0, 50) + '...');
                                         
-                                        try {
-                                            const parsed = JSON.parse(jsonText);
-                                            const isNew = !foundJsonBlocks.some(block => block.text === jsonText);
+                                        // 서버 프롬프트에서 이미 사용자 입력 반복을 방지하므로 필터링 불필요
+                                        // 사용자 입력과 정확히 동일한 단독 토큰만 건너뛰기 (안전장치)
+                                        const tokenContent = data.content.trim();
+                                        if (tokenContent && 
+                                            tokenContent.toLowerCase() === userMessageNormalized && 
+                                            tokenContent.length === userMessageNormalized.length &&
+                                            tokenContent === userMessageNormalized) {
+                                            // 토큰이 사용자 입력과 정확히 일치하고, 단독 토큰인 경우에만 건너뛰기
+                                            // console.log('[TOKEN] 사용자 입력과 정확히 동일한 토큰 감지 - 건너뜀:', tokenContent);
+                                            continue;
+                                        }
+                                        
+                                        // 그 외 모든 토큰은 그대로 사용 (서버 프롬프트가 처리하므로 추가 필터링 불필요)
+                                        fullContent += data.content;
+                                        
+                                        // JSON 메타데이터 추출 (생각하는 과정용) - 표시는 하되 제거하지 않음
+                                    let jsonStart = fullContent.indexOf('{');
+                                    const foundJsonBlocks = [];
+                                    
+                                    while (jsonStart !== -1) {
+                                        let braceCount = 0;
+                                        let jsonEnd = -1;
+                                        
+                                        for (let i = jsonStart; i < fullContent.length; i++) {
+                                            if (fullContent[i] === '{') braceCount++;
+                                            if (fullContent[i] === '}') braceCount--;
+                                            if (braceCount === 0) {
+                                                jsonEnd = i + 1;
+                                                break;
+                                            }
+                                        }
+                                        
+                                        if (jsonEnd > jsonStart) {
+                                            const jsonText = fullContent.substring(jsonStart, jsonEnd);
                                             
-                                            if (isNew) {
-                                                foundJsonBlocks.push({ text: jsonText, parsed: parsed });
-                                                const alreadyExists = jsonBlocks.some(block => block.text === jsonText);
-                                                if (!alreadyExists) {
-                                                    jsonBlocks.push({ text: jsonText, parsed: parsed });
+                                            // JSON 메타데이터 키워드가 포함된 경우만 처리
+                                            if (jsonText.includes('"search_queries"') || 
+                                                jsonText.includes('"research_plan"') || 
+                                                jsonText.includes('"priority"') ||
+                                                jsonText.includes('"score"') || 
+                                                jsonText.includes('"is_sufficient"') || 
+                                                jsonText.includes('"feedback"') ||
+                                                jsonText.includes('"missing_information"')) {
+                                                
+                                                try {
+                                                    const parsed = JSON.parse(jsonText);
+                                                    const isNew = !foundJsonBlocks.some(block => block.text === jsonText);
                                                     
-                                                    const steps = parseThinkingProcess(jsonText);
-                                                    if (steps.length > 0) {
-                                                        thinkingSteps.push(...steps);
-                                                        shouldShowThinkingProcess = true;
-                                                        if (!thinkingProcessUI) {
-                                                            thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
-                                                        } else {
-                                                            updateThinkingProcessUI();
+                                                    if (isNew) {
+                                                        foundJsonBlocks.push({ text: jsonText, parsed: parsed });
+                                                        const alreadyExists = jsonBlocks.some(block => block.text === jsonText);
+                                                        if (!alreadyExists) {
+                                                            jsonBlocks.push({ text: jsonText, parsed: parsed });
+                                                            
+                                                            const steps = parseThinkingProcess(jsonText);
+                                                            if (steps.length > 0) {
+                                                                thinkingSteps.push(...steps);
+                                                                shouldShowThinkingProcess = true;
+                                                                if (!thinkingProcessUI) {
+                                                                    thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
+                                                                } else {
+                                                                    updateThinkingProcessUI();
+                                                                }
+                                                            }
                                                         }
                                                     }
+                                                } catch (e) {
+                                                    // JSON 파싱 실패는 무시 (일반 텍스트일 수 있음)
                                                 }
                                             }
-                                        } catch (e) {
-                                            console.error('JSON 파싱 실패:', e);
+                                            
+                                            jsonStart = fullContent.indexOf('{', jsonEnd);
+                                        } else {
+                                            break;
                                         }
                                     }
                                     
-                                    jsonStart = fullContent.indexOf('{', jsonEnd);
-                                } else {
-                                    break;
-                                }
-                            }
-                            
-                            let displayContent = fullContent;
-                            const sortedBlocks = [...jsonBlocks].sort((a, b) => b.text.length - a.text.length);
-                            sortedBlocks.forEach(jsonBlock => {
-                                const escapedText = jsonBlock.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                                displayContent = displayContent.replace(new RegExp(escapedText, 'g'), '').trim();
-                            });
-                            
-                            displayContent = displayContent.replace(/^\s*\{[\s\S]*?\}\s*\{[\s\S]*?\}\s*/g, '');
-                            displayContent = displayContent.replace(/^\s*\{[\s\S]*?\}\s*/g, '');
-                            
-                            if (displayContent.includes('"search_queries"') || 
-                                displayContent.includes('"research_plan"') || 
-                                displayContent.includes('"score"')) {
-                                displayContent = displayContent.replace(/\{[\s\S]*?\}/g, function(match) {
-                                    if (match.includes('"search_queries"') || 
-                                        match.includes('"research_plan"') || 
-                                        match.includes('"score"') ||
-                                        match.includes('"priority"') ||
-                                        match.includes('"is_sufficient"') ||
-                                        match.includes('"feedback"')) {
-                                        return '';
+                                    // 표시할 내용: JSON 메타데이터 블록만 제거하고 실제 응답은 유지
+                                    let displayContent = fullContent;
+                                    
+                                    // JSON 메타데이터 블록만 제거 (jsonBlocks에 저장된 것들)
+                                    const sortedBlocks = [...jsonBlocks].sort((a, b) => b.text.length - a.text.length);
+                                    sortedBlocks.forEach(jsonBlock => {
+                                        const escapedText = jsonBlock.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                        // 정확히 일치하는 JSON 블록만 제거
+                                        displayContent = displayContent.replace(new RegExp(escapedText.replace(/\s+/g, '\\s+'), 'g'), '').trim();
+                                    });
+                                    
+                                    // 앞쪽에 남아있는 JSON 패턴 제거 (응답 시작 부분의 메타데이터)
+                                    displayContent = displayContent.replace(/^\s*\{[^{}]*?"(?:search_queries|research_plan|priority|score|is_sufficient|feedback|missing_information)"[^{}]*?\}\s*/g, '');
+                                    
+                                    // 빈 문자열이 아닌 경우에만 표시
+                                    if (displayContent.trim() || fullContent.trim()) {
+                                        hasReceivedToken = true;
+                                        // displayContent가 비어있으면 원본 표시 (필터링 오류 방지)
+                                        const contentToDisplay = displayContent.trim() || fullContent;
+                                        const formattedContent = formatMessage(contentToDisplay);
+                                        bubble.innerHTML = formattedContent + '<span class="streaming-cursor">▊</span>';
+                                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
                                     }
-                                    return match;
-                                }).trim();
-                            }
-                            
-                            hasReceivedToken = true;
-                            const formattedContent = formatMessage(displayContent);
-                            bubble.innerHTML = formattedContent + '<span class="streaming-cursor">▊</span>';
-                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                        } else if (data.type === 'content') {
+                                } else if (data.type === 'content') {
                             fullContent += data.content;
                             hasReceivedToken = true;
                             const formattedContent = formatMessage(fullContent);
@@ -509,6 +596,21 @@ async function sendMessageStreaming(message, sendBtn) {
                         } else if (data.type === 'node') {
                             const nodeName = data.node || '';
                             const displayName = data.display || '';
+                            
+                            // 노드 이벤트를 받으면 실시간으로 상태 업데이트
+                            // 현재 응답이 시작되지 않았거나 비어있으면 상태만 표시
+                            if (!hasReceivedToken || fullContent.trim() === '') {
+                                bubble.innerHTML = `<div class="node-status-container"><span class="node-status">${displayName}</span><span class="streaming-cursor">▊</span></div>`;
+                                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                            }
+                            
+                            // 노드 히스토리에 추가
+                            if (nodeName && !nodeHistory.some(n => n.name === nodeName)) {
+                                nodeHistory.push({
+                                    name: nodeName,
+                                    display: displayName
+                                });
+                            }
                             
                             // faq_specialist의 경우 node 이벤트만으로도 "생각하는 과정"에 추가
                             if (nodeName === 'faq_specialist') {
@@ -532,39 +634,97 @@ async function sendMessageStreaming(message, sendBtn) {
                             if (nodeName && ['writer', 'faq_specialist', 'transaction_specialist', 'intent_clarifier', 'simple_chat_specialist'].includes(nodeName)) {
                                 currentResponseNode = nodeName;
                             }
-                            
-                            if (!hasReceivedToken && (!fullContent || fullContent.trim() === '')) {
-                                bubble.innerHTML = `<span class="node-status">${displayName}</span><span class="streaming-cursor">▊</span>`;
-                                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                            }
                         } else if (data.type === 'node_search') {
                             const nodeName = data.node || '';
                             const searchInfo = data.search_info || {};
                             
+                            // node_search 이벤트 로깅
+                            // console.log('[NODE_SEARCH] 받음:', nodeName, searchInfo);
+                            
                             if (nodeName === 'simple_chat_specialist' || nodeName === 'transaction_specialist') {
-                                return;
+                                continue;  // return -> continue: 같은 청크의 다른 이벤트 처리 계속
                             }
                             
+                            // nodeSearchInfo에 저장 (나중에 thinkingSteps에 추가됨)
                             nodeSearchInfo[nodeName] = searchInfo;
                             
+                            // 즉시 thinkingSteps에 추가하여 업데이트
                             const nodeDisplay = nodeHistory.find(n => n.name === nodeName)?.display || NODE_DISPLAY_NAMES[nodeName] || nodeName;
                             const stepIndex = addOrUpdateThinkingStep(nodeName, nodeDisplay, searchInfo);
                             
                             if (stepIndex !== -1) {
                                 shouldShowThinkingProcess = true;
-                                updateThinkingProcessUI();
+                                
+                                // thinkingProcessUI가 없으면 생성, 있으면 업데이트
+                                if (!thinkingProcessUI) {
+                                    thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
+                                    if (thinkingProcessUI && !messageDiv.contains(thinkingProcessUI)) {
+                                        messageDiv.appendChild(thinkingProcessUI);
+                                        thinkingProcessUI.classList.add('collapsed');
+                                    }
+                                } else {
+                                    updateThinkingProcessUI();
+                                }
                             }
                         } else if (data.type === 'done') {
-                            let finalText = fullContent || data.final_response || '';
+                            // console.log('[DONE] 이벤트 수신:', { fullContent: fullContent.length, final_response: data.final_response?.length });
+                            doneReceived = true;  // done 이벤트 수신 표시
                             
-                            jsonBlocks.forEach(jsonBlock => {
-                                finalText = finalText.replace(jsonBlock.text, '').trim();
-                            });
-                            finalText = finalText.replace(/^\s*\{[\s\S]*?\}\s*\{[\s\S]*?\}\s*/g, '');
-                            finalText = finalText.replace(/^\s*\{[\s\S]*?\}\s*/g, '');
+                            // final_response 저장 (fallback 처리용)
+                            if (data.final_response) {
+                                finalResponseFromServer = data.final_response;
+                            }
                             
-                            const formattedContent = formatMessage(finalText);
-                            bubble.innerHTML = formattedContent;
+                            // 최종 응답: fullContent 우선, 없으면 final_response 사용
+                            let finalText = fullContent.trim() || data.final_response || '';
+                            
+                            // 서버 프롬프트에서 이미 사용자 입력 반복을 방지하므로 필터링 불필요
+                            // 최소한의 안전장치: 사용자 입력과 정확히 동일한 응답만 필터링 (거의 발생하지 않음)
+                            if (userMessageNormalized && finalText.trim().toLowerCase() === userMessageNormalized) {
+                                // 응답이 사용자 입력과 정확히 동일한 경우만 필터링 (서버 오류 방지)
+                                // console.warn('[DONE] 사용자 입력과 정확히 동일한 응답 감지 - 건너뜀:', finalText);
+                                finalText = ''; // 빈 응답으로 처리
+                            }
+                            
+                            // JSON 메타데이터 블록만 제거
+                            if (jsonBlocks.length > 0) {
+                                const sortedBlocks = [...jsonBlocks].sort((a, b) => b.text.length - a.text.length);
+                                sortedBlocks.forEach(jsonBlock => {
+                                    const escapedText = jsonBlock.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                    finalText = finalText.replace(new RegExp(escapedText.replace(/\s+/g, '\\s+'), 'g'), '').trim();
+                                });
+                            }
+                            
+                            // 앞쪽에 남아있는 JSON 메타데이터 패턴 제거
+                            finalText = finalText.replace(/^\s*\{[^{}]*?"(?:search_queries|research_plan|priority|score|is_sufficient|feedback|missing_information)"[^{}]*?\}\s*/g, '').trim();
+                            
+                            // 최종 텍스트가 비어있지 않은 경우에만 표시
+                            // streaming-cursor 제거 (중요!)
+                            // console.log('[DONE] 처리 시작:', { finalText: finalText.length, fullContent: fullContent.length, final_response: data.final_response?.length });
+                            
+                            if (finalText.trim()) {
+                                const formattedContent = formatMessage(finalText);
+                                bubble.innerHTML = formattedContent;  // streaming-cursor 제거됨
+                                // console.log('[DONE] finalText로 표시 완료');
+                            } else if (fullContent.trim()) {
+                                // 필터링으로 인해 비어졌다면 원본 표시
+                                const formattedContent = formatMessage(fullContent);
+                                bubble.innerHTML = formattedContent;  // streaming-cursor 제거됨
+                                // console.log('[DONE] fullContent로 표시 완료');
+                            } else if (data.final_response && data.final_response.trim()) {
+                                // final_response 사용 (token 이벤트를 받지 못한 경우)
+                                const formattedContent = formatMessage(data.final_response.trim());
+                                bubble.innerHTML = formattedContent;
+                                fullContent = data.final_response;  // 나중에 사용할 수 있도록 저장
+                                // console.log('[DONE] final_response로 표시 완료');
+                            } else {
+                                // 응답이 없어도 streaming-cursor 제거
+                                bubble.innerHTML = '<span style="color: var(--text-secondary);">응답을 생성하지 못했습니다.</span>';
+                                // console.warn('[DONE] 응답이 없음');
+                            }
+                            
+                            // 스크롤 업데이트
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
                             
                             if (currentResponseNode === 'simple_chat_specialist' || currentResponseNode === 'transaction_specialist') {
                                 shouldShowThinkingProcess = false;
@@ -598,11 +758,26 @@ async function sendMessageStreaming(message, sendBtn) {
                                     }
                                 });
                                 
+                                // thinkingSteps가 있거나 nodeSearchInfo가 있으면 무조건 표시
                                 if (thinkingSteps.length > 0 || Object.keys(filteredNodeSearchInfo).length > 0) {
                                     shouldShowThinkingProcess = true;
                                     
+                                    // thinkingSteps가 비어있으면 nodeSearchInfo에서 생성
+                                    if (thinkingSteps.length === 0 && Object.keys(filteredNodeSearchInfo).length > 0) {
+                                        Object.entries(filteredNodeSearchInfo).forEach(([nodeName, searchInfo]) => {
+                                            const stepTitle = getNodeStepTitle(nodeName, '');
+                                            if (stepTitle) {
+                                                const nodeDisplay = nodeHistory.find(n => n.name === nodeName)?.display || NODE_DISPLAY_NAMES[nodeName] || nodeName;
+                                                addOrUpdateThinkingStep(nodeName, nodeDisplay, searchInfo);
+                                            }
+                                        });
+                                    }
+                                    
                                     if (!thinkingProcessUI && thinkingSteps.length > 0) {
                                         thinkingProcessUI = createThinkingProcessUI(thinkingSteps);
+                                        if (thinkingProcessUI && !messageDiv.contains(thinkingProcessUI)) {
+                                            messageDiv.appendChild(thinkingProcessUI);
+                                        }
                                     } else if (thinkingProcessUI) {
                                         updateThinkingProcessUI();
                                     }
@@ -615,6 +790,22 @@ async function sendMessageStreaming(message, sendBtn) {
                                         thinkingProcessUI.classList.add('collapsed');
                                         thinkingProcessUI.classList.remove('expanded');
                                     }
+                                    
+                                    /*
+                                    console.log('[DONE] 생각하는 과정 표시:', {
+                                        thinkingSteps: thinkingSteps.length,
+                                        nodeSearchInfo: Object.keys(filteredNodeSearchInfo).length,
+                                        shouldShow: shouldShowThinkingProcess
+                                    });
+                                    */
+                                } else {
+                                    // 정보가 없어도 최소한 표시 (디버깅용)
+                                    /*
+                                    console.warn('[DONE] 생각하는 과정 정보 없음:', {
+                                        thinkingSteps: thinkingSteps.length,
+                                        nodeSearchInfo: Object.keys(nodeSearchInfo).length
+                                    });
+                                    */
                                 }
                             }
                             
@@ -623,22 +814,161 @@ async function sendMessageStreaming(message, sendBtn) {
                             bubble.innerHTML = formatMessage('죄송합니다. 오류가 발생했습니다: ' + data.content);
                             sendBtn.disabled = false;
                         }
-                    } catch (parseError) {
-                        console.error('SSE 파싱 오류:', parseError);
+                            } catch (parseError) {
+                                // console.error('[SSE] JSON 파싱 오류:', parseError, 'jsonStr:', jsonStr.substring(0, 100));
+                            }
+                        }
                     }
                 }
+                
+                eventEnd = buffer.indexOf('\n\n');
+            }
+            
+            // done이면 남은 버퍼 처리
+            if (done) {
+                // 남은 버퍼에서 완전한 이벤트 처리
+                if (buffer.trim()) {
+                    // console.log('[SSE] done - 남은 버퍼 처리:', buffer.substring(0, 200));
+                    // 마지막 버퍼에서 이벤트 찾기
+                    const lastEventEnd = buffer.indexOf('\n\n');
+                    if (lastEventEnd !== -1) {
+                        const lastEventText = buffer.slice(0, lastEventEnd).trim();
+                        buffer = buffer.slice(lastEventEnd + 2);
+                        
+                        if (lastEventText) {
+                            const lines = lastEventText.split('\n');
+                            for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const jsonStr = line.slice(6);
+                                        // console.log('[SSE] 마지막 이벤트 파싱 시도:', jsonStr.substring(0, 150));
+                                        const data = JSON.parse(jsonStr);
+                                        // console.log('[SSE] 마지막 이벤트 파싱 성공 - type:', data.type);
+                                        
+                                        // 이벤트 타입별 처리 (위의 로직 재사용)
+                                        // token 이벤트 처리
+                                        if (data.type === 'token') {
+                                            // console.log('[TOKEN] 마지막 버퍼에서 받음:', data.content.substring(0, 50) + '...');
+                                            
+                                            // 사용자 입력과 정확히 동일한 토큰만 건너뛰기
+                                            const tokenContent = data.content.trim();
+                                            if (tokenContent && tokenContent.toLowerCase() === userMessageNormalized && tokenContent.length === userMessageNormalized.length) {
+                                                // console.log('[TOKEN] 사용자 입력과 정확히 동일한 토큰 감지 - 건너뜀:', tokenContent);
+                                                continue;
+                                            }
+                                            
+                                            // 부분 일치는 필터링하지 않음
+                                            fullContent += data.content;
+                                            hasReceivedToken = true;
+                                            const formattedContent = formatMessage(fullContent);
+                                            bubble.innerHTML = formattedContent + '<span class="streaming-cursor">▊</span>';
+                                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                                        }
+                                        // done 이벤트 처리
+                                        else if (data.type === 'done') {
+                                            // console.log('[DONE] 마지막 버퍼에서 받음:', { fullContent: fullContent.length, final_response: data.final_response?.length });
+                                            doneReceived = true;
+                                            let finalText = fullContent.trim() || data.final_response || '';
+                                            if (finalText.trim()) {
+                                                const formattedContent = formatMessage(finalText);
+                                                bubble.innerHTML = formattedContent;  // streaming-cursor 제거
+                                                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                                            }
+                                            sendBtn.disabled = false;
+                                        }
+                                    } catch (parseError) {
+                                        // console.error('[SSE] 마지막 이벤트 파싱 오류:', parseError);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // 버퍼에 남은 줄들도 처리 (완전하지 않은 이벤트)
+                    if (buffer.trim()) {
+                        const lines = buffer.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const jsonStr = line.slice(6);
+                                    const data = JSON.parse(jsonStr);
+                                    // console.log('[SSE] 남은 줄에서 이벤트 파싱:', data.type);
+                                    // 위와 동일한 처리
+                                    if (data.type === 'token') {
+                                        // 사용자 입력과 정확히 동일한 토큰만 건너뛰기
+                                        const tokenContent = data.content.trim();
+                                        if (tokenContent && tokenContent.toLowerCase() === userMessageNormalized && tokenContent.length === userMessageNormalized.length) {
+                                            continue;
+                                        }
+                                        
+                                        // 부분 일치는 필터링하지 않음
+                                        fullContent += data.content;
+                                        hasReceivedToken = true;
+                                        const formattedContent = formatMessage(fullContent);
+                                        bubble.innerHTML = formattedContent + '<span class="streaming-cursor">▊</span>';
+                                    } else if (data.type === 'done') {
+                                        doneReceived = true;
+                                        let finalText = fullContent.trim() || data.final_response || '';
+                                        
+                                        // 서버 프롬프트에서 이미 처리하므로 필터링 불필요
+                                        // 최소한의 안전장치: 사용자 입력과 정확히 동일한 응답만 필터링
+                                        if (userMessageNormalized && finalText.trim().toLowerCase() === userMessageNormalized) {
+                                            // console.warn('[DONE] 사용자 입력과 정확히 동일한 응답 감지 - 건너뜀');
+                                            finalText = '';
+                                        }
+                                        
+                                        if (finalText.trim()) {
+                                            const formattedContent = formatMessage(finalText);
+                                            bubble.innerHTML = formattedContent;
+                                        }
+                                        sendBtn.disabled = false;
+                                    }
+                                } catch (parseError) {
+                                    // console.error('[SSE] 남은 줄 파싱 오류:', parseError);
+                                }
+                            }
+                        }
+                    }
+                }
+                break;  // done이면 루프 종료
             }
         }
         
-        let finalContent = fullContent;
-        jsonBlocks.forEach(jsonBlock => {
-            finalContent = finalContent.replace(jsonBlock.text, '').trim();
-        });
-        finalContent = finalContent.replace(/^\s*\{[\s\S]*?\}\s*\{[\s\S]*?\}\s*/g, '');
-        finalContent = finalContent.replace(/^\s*\{[\s\S]*?\}\s*/g, '');
-        
-        const finalFormattedContent = formatMessage(finalContent);
-        bubble.innerHTML = finalFormattedContent;
+        // while 루프가 끝났지만 done 이벤트를 받지 못한 경우 처리
+        // done 이벤트를 받았다면 이미 bubble.innerHTML이 업데이트되었으므로 여기서는 건너뜀
+        if (!doneReceived) {
+            // console.warn('[LOOP END] done 이벤트를 받지 못함 - fallback 처리');
+            // console.log('[LOOP END] fullContent:', fullContent.length, 'finalResponseFromServer:', finalResponseFromServer.length);
+            
+            // fullContent 또는 finalResponseFromServer 사용
+            let finalContent = fullContent.trim() || finalResponseFromServer.trim() || '';
+            
+            // 서버 프롬프트에서 이미 처리하므로 필터링 불필요
+            // 최소한의 안전장치: 사용자 입력과 정확히 동일한 응답만 필터링
+            if (userMessageNormalized && finalContent.trim().toLowerCase() === userMessageNormalized) {
+                // console.warn('[LOOP END] 사용자 입력과 정확히 동일한 응답 감지 - 건너뜀');
+                finalContent = '';
+            }
+            
+            if (finalContent) {
+                // console.log('[LOOP END] 최종 응답 표시 - fullContent 또는 finalResponseFromServer 사용');
+                // JSON 메타데이터 제거
+                jsonBlocks.forEach(jsonBlock => {
+                    finalContent = finalContent.replace(jsonBlock.text, '').trim();
+                });
+                finalContent = finalContent.replace(/^\s*\{[\s\S]*?\}\s*\{[\s\S]*?\}\s*/g, '');
+                finalContent = finalContent.replace(/^\s*\{[\s\S]*?\}\s*/g, '');
+                
+                const finalFormattedContent = formatMessage(finalContent);
+                bubble.innerHTML = finalFormattedContent;  // streaming-cursor 제거
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            } else {
+                // console.warn('[LOOP END] fullContent와 finalResponseFromServer 모두 없음');
+                // 응답이 없어도 streaming-cursor 제거
+                bubble.innerHTML = '<span style="color: var(--text-secondary);">응답을 생성하지 못했습니다.</span>';
+            }
+        } else {
+            // console.log('[LOOP END] done 이벤트를 이미 받았음 - 건너뜀');
+        }
         
         if (currentResponseNode === 'simple_chat_specialist' || currentResponseNode === 'transaction_specialist') {
             shouldShowThinkingProcess = false;
@@ -696,9 +1026,9 @@ async function sendMessageStreaming(message, sendBtn) {
         
     } catch (error) {
         if (error.name === 'AbortError') {
-            console.log('요청이 취소되었습니다.');
+            // console.log('요청이 취소되었습니다.');
         } else {
-            console.error('스트리밍 오류:', error);
+            // console.error('스트리밍 오류:', error);
             bubble.innerHTML = formatMessage('연결 오류가 발생했습니다. 다시 시도해주세요.');
         }
         sendBtn.disabled = false;
@@ -737,7 +1067,7 @@ async function sendMessageNormal(message, sendBtn) {
         sendBtn.disabled = false;
         if (error.name !== 'AbortError') {
             addMessageToChat('assistant', '연결 오류가 발생했습니다. 다시 시도해주세요.');
-            console.error('Error:', error);
+            // console.error('Error:', error);
         }
     }
 }
@@ -956,7 +1286,7 @@ async function clearChat() {
             `;
         }
     } catch (error) {
-        console.error('대화 기록 삭제 실패:', error);
+        // console.error('대화 기록 삭제 실패:', error);
         alert('대화 기록 삭제 중 오류가 발생했습니다.');
     }
 }

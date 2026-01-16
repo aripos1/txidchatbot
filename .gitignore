@@ -161,3 +161,9 @@ coverage.xml
 .hypothesis/
 .nox/
 .ruff_cache/
+
+# Documentation (README.md 제외)
+# 모든 .md 파일 무시
+*.md
+# README.md는 예외 (무시하지 않음)
+!README.md

@@ -466,6 +466,39 @@
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
     line-height: var(--line-height-relaxed);
+    margin-top: var(--space-xs);
+}
+
+.thinking-links {
+    margin-top: var(--space-sm);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+.thinking-link {
+    display: inline-block;
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-tertiary);
+    color: var(--color-primary);
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    transition: all var(--transition-base);
+    border: 1px solid var(--border-color-light);
+}
+
+.thinking-link:hover {
+    background: var(--color-primary);
+    color: var(--text-inverse);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.node-status-container {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
 }
 
 /* Empty State */

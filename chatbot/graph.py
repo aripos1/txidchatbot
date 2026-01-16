@@ -96,11 +96,64 @@ def route_from_faq(state: ChatState) -> Literal["planner", "save_response"]:
         return "save_response"
 
 
-def route_from_grader(state: ChatState) -> Literal["planner", "writer", "fallback"]:
+def route_from_planner(state: ChatState) -> Literal["save_response", "researcher"]:
+    """Planner에서 Writer가 이미 실행되었는지 확인 (Fallback 케이스만)"""
+    # PlannerAgent가 Fallback 케이스에서 Writer를 실행한 경우 (쿼리 없음, 상태 손상 등)
+    writer_executed = state.get("writer_executed", False)
+    if writer_executed:
+        logger.info("PlannerAgent가 Fallback에서 Writer를 실행함 (writer_executed 플래그) - save_response로 이동")
+        return "save_response"
+    
+    # 정상 흐름: researcher로 진행 (LangGraph 그래프가 planner → researcher → grader → writer 순서로 실행)
+    return "researcher"
+
+
+def route_from_grader(state: ChatState) -> Literal["planner", "writer", "fallback", "save_response"]:
     """Grader 평가 결과에 따라 라우팅"""
+    from langchain_core.messages import AIMessage
+    
+    # 이미 Writer가 실행되었는지 확인 (멀티 에이전트 모드에서 GraderAgent가 직접 호출한 경우)
+    # 플래그 확인 (가장 확실한 방법)
+    writer_executed = state.get("writer_executed", False)
+    if writer_executed:
+        logger.info("이미 Writer가 실행됨 (writer_executed 플래그) - save_response로 직접 이동하여 종료")
+        return "save_response"  # writer를 건너뛰고 바로 save_response로
+    
+    # messages에서 최종 응답 확인
+    messages = state.get("messages", [])
+    if messages:
+        ai_messages = [msg for msg in messages if isinstance(msg, AIMessage)]
+        if len(ai_messages) >= 2:  # Router 응답 + Writer 응답
+            last_ai_msg = ai_messages[-1]
+            if hasattr(last_ai_msg, "content"):
+                content = str(last_ai_msg.content)
+                # 실제 응답은 일반적으로 100자 이상이고, "[웹 검색 완료]" 같은 상태 메시지가 아님
+                if len(content) > 100 and "[웹 검색 완료]" not in content:
+                    # 상태 메시지가 아니고, 실제 답변 내용이 있는지 확인
+                    is_status_message = any(keyword in content for keyword in [
+                        "[웹 검색 완료]", "[검색 결과]", "검색 중", "처리 중"
+                    ])
+                    if not is_status_message:
+                        # 실제 이벤트나 정보가 포함되어 있으면 Writer가 실행된 것으로 간주
+                        has_actual_content = any(keyword in content.lower() for keyword in [
+                            "이벤트", "프로모션", "진행", "안내", "정보", "빗썸", "bithumb",
+                            "주년", "혜택", "참여", "할인", "경품"
+                        ])
+                        if has_actual_content:
+                            logger.info(f"이미 Writer가 실행됨 (최종 응답 감지: {len(content)}자) - 더 이상 진행하지 않음")
+                            return "fallback"
+    
     is_sufficient = state.get("is_sufficient", False)
     search_loop_count = state.get("search_loop_count", 0)
-    grader_score = state.get("grader_score", 0.0)
+    grader_score = state.get("grader_score")
+    
+    # grader_score가 None이거나 숫자가 아닌 경우 기본값 사용
+    if grader_score is None:
+        grader_score = 0.0
+    try:
+        grader_score = float(grader_score)
+    except (TypeError, ValueError):
+        grader_score = 0.0
     
     # 3회 이상 재검색했으면 Fallback
     if search_loop_count >= 3:
@@ -155,21 +208,105 @@ def create_chatbot_graph():
     
     if use_true_multi_agent:
         # 협업 모드: CoordinatorAgent가 에이전트 간 협업을 관리
+        # LangGraph SSE 지원을 위해 모든 실행 단계를 LangGraph 노드로 실행
         from .agents.coordinator_agent import get_coordinator_agent
         coordinator_agent = get_coordinator_agent()
         registry.register(coordinator_agent)
         
-        logger.info("🤝 멀티 에이전트 협업 모드 활성화: CoordinatorAgent가 에이전트 협업 관리")
+        logger.info("🤝 멀티 에이전트 협업 모드 활성화: LangGraph 그래프를 통해 실행")
+        logger.info("   - 모든 노드가 LangGraph 노드로 등록됨 (SSE 지원)")
         logger.info(f"✅ 시스템 초기화 완료: 총 {len(registry.list_agents())}개 에이전트")
         
-        # 간단한 그래프: CoordinatorAgent만 실행
+        # LangGraph SSE를 위해 모든 노드를 등록하고 조건부 엣지로 연결
         workflow = StateGraph(ChatState)
+        
+        # 모든 노드 등록 (LangGraph SSE 지원)
         workflow.add_node("coordinator", coordinator_agent.process)
+        workflow.add_node("router", router)
+        workflow.add_node("intent_clarifier", intent_clarifier)
+        workflow.add_node("simple_chat_specialist", simple_chat_specialist)
+        workflow.add_node("faq_specialist", faq_specialist)
+        workflow.add_node("transaction_specialist", transaction_specialist)
+        workflow.add_node("check_db", check_db)
+        workflow.add_node("planner", planner)
+        workflow.add_node("researcher", researcher)
+        workflow.add_node("summarizer", summarizer)
+        workflow.add_node("grader", grader)
+        workflow.add_node("writer", writer)
+        workflow.add_node("save_response", save_response)
+        
+        # 엔트리 포인트: coordinator → router
         workflow.set_entry_point("coordinator")
-        workflow.add_edge("coordinator", END)
+        workflow.add_edge("coordinator", "router")
+        
+        # Router에서 전문가로 라우팅 (조건부 엣지)
+        workflow.add_conditional_edges(
+            "router",
+            route_to_specialist,
+            {
+                "intent_clarifier": "intent_clarifier",
+                "simple_chat": "simple_chat_specialist",
+                "faq": "faq_specialist",
+                "transaction": "transaction_specialist",
+                "web_search": "planner",
+                "hybrid": "planner",  # hybrid는 Deep Research로 직접 연결
+                "general": "faq_specialist"
+            }
+        )
+        
+        # Intent Clarifier → Save
+        workflow.add_edge("intent_clarifier", "save_response")
+        
+        # SimpleChat → Save
+        workflow.add_edge("simple_chat_specialist", "save_response")
+        
+        # FAQ → Save 또는 Deep Research (조건부 엣지)
+        workflow.add_conditional_edges(
+            "faq_specialist",
+            route_from_faq,
+            {
+                "planner": "planner",  # Deep Research로 직접 연결
+                "save_response": "save_response"
+            }
+        )
+        
+        # Transaction → Save
+        workflow.add_edge("transaction_specialist", "save_response")
+        
+        # Deep Research 순환형 구조
+        # Planner → Save (writer_executed 플래그가 있으면) 또는 Researcher (없으면)
+        workflow.add_conditional_edges(
+            "planner",
+            route_from_planner,
+            {
+                "save_response": "save_response",
+                "researcher": "researcher"
+            }
+        )
+        
+        # Researcher → Grader
+        workflow.add_edge("researcher", "grader")
+        
+        # Grader → Planner(재검색) 또는 Writer(답변) 또는 Save(이미 실행됨) (조건부 엣지)
+        workflow.add_conditional_edges(
+            "grader",
+            route_from_grader,
+            {
+                "planner": "planner",
+                "writer": "writer",
+                "fallback": "writer",
+                "save_response": "save_response"  # writer_executed 플래그가 있으면 바로 save_response로
+            }
+        )
+        
+        # Writer → Save
+        workflow.add_edge("writer", "save_response")
+        
+        # Save → END
+        workflow.add_edge("save_response", END)
         
         app = workflow.compile()
-        logger.info("✅ 멀티 에이전트 협업 그래프 생성 완료")
+        logger.info("✅ 멀티 에이전트 협업 그래프 생성 완료 (모든 노드 LangGraph 노드로 실행 - SSE 지원)")
         return app
     
     # LangGraph 제어 모드: 그래프가 에이전트를 순차적으로 호출
@@ -232,20 +369,28 @@ def create_chatbot_graph():
     workflow.add_edge("transaction_specialist", "save_response")
     
     # Deep Research 순환형 구조
-    # Planner → Researcher
-    workflow.add_edge("planner", "researcher")
+    # Planner → Save (writer_executed 플래그가 있으면) 또는 Researcher (없으면)
+    workflow.add_conditional_edges(
+        "planner",
+        route_from_planner,
+        {
+            "save_response": "save_response",
+            "researcher": "researcher"
+        }
+    )
     
     # Researcher → Grader
     workflow.add_edge("researcher", "grader")
     
-    # Grader → Planner(재검색) 또는 Writer(답변)
+    # Grader → Planner(재검색) 또는 Writer(답변) 또는 Save(이미 실행됨)
     workflow.add_conditional_edges(
         "grader",
         route_from_grader,
         {
             "planner": "planner",
             "writer": "writer",
-            "fallback": "writer"
+            "fallback": "writer",
+            "save_response": "save_response"  # writer_executed 플래그가 있으면 바로 save_response로
         }
     )
     

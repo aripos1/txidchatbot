@@ -30,7 +30,7 @@ class PlannerAgent(BaseAgent):
         )
     
     async def process(self, state: ChatState) -> ChatState:
-        """Planner 처리 로직 - 멀티 에이전트 협업"""
+        """Planner 처리 로직 - LangGraph 그래프를 통해 실행됨"""
         import sys
         from langchain_core.messages import HumanMessage
         self.update_state(plan_count=self.get_state("plan_count", 0) + 1)
@@ -41,27 +41,7 @@ class PlannerAgent(BaseAgent):
             logger.info(f"📨 [{self.name}] RouterAgent로부터 정보 수신: {router_info.get('question_type', 'N/A')}")
             print(f"📨 [{self.name}] RouterAgent로부터 정보 수신: {router_info.get('question_type', 'N/A')}", file=sys.stdout, flush=True)
         
-        # ✅ 시세 질문 조기 감지 (병렬 처리 불필요)
-        user_messages = [msg for msg in state.get("messages", []) if isinstance(msg, HumanMessage)]
-        if user_messages:
-            last_message = user_messages[-1].content.lower()
-            is_price_query = any(keyword in last_message for keyword in config.PRICE_KEYWORDS)
-            
-            if is_price_query:
-                logger.info(f"✅ [{self.name}] 시세 질문 감지 - 단일 ResearcherAgent 호출 (병렬 처리 불필요)")
-                print(f"✅ [{self.name}] 시세 질문 감지 - 단일 ResearcherAgent 호출", file=sys.stdout, flush=True)
-                
-                # Planner는 건너뛰고 바로 단일 ResearcherAgent 호출
-                researcher_agent = ResearcherAgent()
-                updated_state = await researcher_agent.process(state)
-                
-                # GraderAgent 호출 (직접 인스턴스 생성)
-                grader_agent = GraderAgent()
-                updated_state = await grader_agent.process(updated_state)
-                
-                return updated_state
-        
-        # 기존 Planner 함수 호출 (일반 질문)
+        # 기존 Planner 함수 호출만 수행 (LangGraph 그래프가 이후 흐름을 관리)
         result = await planner_func(state)
         
         # ⚠️ 상태 손상 감지 (사용자 메시지 없음)
@@ -73,10 +53,23 @@ class PlannerAgent(BaseAgent):
             fallback_state = await writer_func(fallback_state)
             from ..nodes.save_response import save_response as save_response_func
             fallback_state = await save_response_func(fallback_state)
+            fallback_state["writer_executed"] = True
             return fallback_state
         
-        # 쿼리 개수 기록
+        # ⚠️ 검색 쿼리가 없으면 즉시 Fallback
         search_queries = result.get("search_queries", [])
+        if not search_queries or len(search_queries) == 0:
+            logger.warning("⚠️ [PlannerAgent] 검색 쿼리 없음 - 즉시 Fallback")
+            print("⚠️ [PlannerAgent] 검색 쿼리 없음 - 즉시 Fallback", file=sys.stdout, flush=True)
+            from ..nodes.writer import writer as writer_func
+            updated_state = {**state, **result}
+            updated_state = await writer_func(updated_state)
+            from ..nodes.save_response import save_response as save_response_func
+            updated_state = await save_response_func(updated_state)
+            updated_state["writer_executed"] = True
+            return updated_state
+        
+        # 쿼리 개수 기록
         if search_queries:
             query_count = len(search_queries)
             self.add_to_memory("last_query_count", query_count)
@@ -87,7 +80,7 @@ class PlannerAgent(BaseAgent):
             new_avg = (avg_count * (plan_count - 1) + query_count) / plan_count
             self.update_state(avg_query_count=new_avg)
             
-            # ResearcherAgent에게 검색 계획 공유
+            # ResearcherAgent에게 검색 계획 공유 (정보만 공유, 호출하지 않음)
             try:
                 await self.share_info(
                     "ResearcherAgent",
@@ -101,84 +94,8 @@ class PlannerAgent(BaseAgent):
             except Exception as e:
                 logger.warning(f"⚠️ ResearcherAgent 정보 공유 실패: {e}")
         
-        # 병렬 멀티 에이전트: 여러 ResearcherAgent 인스턴스를 병렬로 생성하여 실행
+        # Planner 함수의 결과만 반환 (LangGraph 그래프가 researcher → grader → writer 순서로 실행)
         updated_state = {**state, **result}
-        
-        search_queries = result.get("search_queries", [])
-        
-        # ⚠️ 검색 쿼리가 없으면 즉시 Fallback
-        if not search_queries or len(search_queries) == 0:
-            logger.warning("⚠️ [PlannerAgent] 검색 쿼리 없음 - 즉시 Fallback")
-            print("⚠️ [PlannerAgent] 검색 쿼리 없음 - 즉시 Fallback", file=sys.stdout, flush=True)
-            from ..nodes.writer import writer as writer_func
-            updated_state = await writer_func(updated_state)
-            from ..nodes.save_response import save_response as save_response_func
-            updated_state = await save_response_func(updated_state)
-            return updated_state
-        
-        if search_queries and len(search_queries) > 1:
-            # 여러 쿼리가 있으면 각 쿼리마다 별도의 ResearcherAgent 인스턴스 생성하여 병렬 실행
-            logger.info(f"🔀 [{self.name}] {len(search_queries)}개 쿼리 → {len(search_queries)}개 ResearcherAgent 병렬 실행")
-            print(f"🔀 [{self.name}] {len(search_queries)}개 쿼리 → {len(search_queries)}개 ResearcherAgent 병렬 실행", file=sys.stdout, flush=True)
-            
-            import asyncio
-            import uuid
-            
-            # 각 쿼리마다 별도의 ResearcherAgent 인스턴스 생성
-            researcher_tasks = []
-            for i, query in enumerate(search_queries):
-                # 각 쿼리마다 새로운 ResearcherAgent 인스턴스 생성
-                researcher_agent = ResearcherAgent(agent_id=str(uuid.uuid4())[:8])
-                
-                # 각 에이전트에 해당 쿼리만 할당
-                query_state = {**updated_state, "search_queries": [query]}
-                
-                # 각 ResearcherAgent를 병렬로 실행
-                researcher_tasks.append(researcher_agent.process(query_state))
-            
-            # 모든 ResearcherAgent를 병렬로 실행
-            researcher_results = await asyncio.gather(*researcher_tasks, return_exceptions=True)
-            
-            # 결과 병합
-            all_web_results = []
-            all_messages = updated_state.get("messages", [])
-            
-            for i, result in enumerate(researcher_results):
-                if isinstance(result, Exception):
-                    logger.error(f"⚠️ [{self.name}] ResearcherAgent-{i} 실행 실패: {result}")
-                    continue
-                
-                web_results = result.get("web_search_results", [])
-                if web_results:
-                    all_web_results.extend(web_results)
-                
-                # 메시지 병합 (중복 제거)
-                result_messages = result.get("messages", [])
-                for msg in result_messages:
-                    if msg not in all_messages:
-                        all_messages.append(msg)
-            
-            # 병합된 결과로 상태 업데이트
-            updated_state["web_search_results"] = all_web_results
-            updated_state["messages"] = all_messages
-            
-            logger.info(f"✅ [{self.name}] {len(researcher_tasks)}개 ResearcherAgent 병렬 실행 완료: {len(all_web_results)}개 결과 수집")
-            print(f"✅ [{self.name}] {len(researcher_tasks)}개 ResearcherAgent 병렬 실행 완료: {len(all_web_results)}개 결과", file=sys.stdout, flush=True)
-        else:
-            # 단일 쿼리이거나 쿼리가 없으면 기존 방식대로 단일 ResearcherAgent 호출
-            try:
-                researcher_agent = ResearcherAgent()
-                updated_state = await researcher_agent.process(updated_state)
-            except Exception as e:
-                logger.error(f"⚠️ [{self.name}] ResearcherAgent 호출 실패: {e}")
-        
-        # GraderAgent 호출 (모든 검색 완료 후) - 직접 인스턴스 생성
-        try:
-            grader_agent = GraderAgent()
-            updated_state = await grader_agent.process(updated_state)
-        except Exception as e:
-            logger.error(f"⚠️ [{self.name}] GraderAgent 호출 실패: {e}")
-        
         return updated_state
     
     def is_task_complete(self, state: ChatState) -> bool:
@@ -290,17 +207,16 @@ class GraderAgent(BaseAgent):
         )
     
     async def process(self, state: ChatState) -> ChatState:
-        """Grader 처리 로직 - 멀티 에이전트 협업"""
+        """Grader 처리 로직 - LangGraph 그래프를 통해 실행됨"""
         import sys
         self.update_state(grade_count=self.get_state("grade_count", 0) + 1)
         
-        # 기존 Grader 함수 호출
+        # 기존 Grader 함수 호출만 수행 (LangGraph 그래프가 이후 흐름을 관리)
         result = await grader_func(state)
         
         # 점수 기록
         grader_score = result.get("grader_score", 0.0)
         is_sufficient = result.get("is_sufficient", False)
-        search_loop_count = state.get("search_loop_count", 0)
         
         self.add_to_memory("last_grader_score", grader_score)
         
@@ -314,65 +230,8 @@ class GraderAgent(BaseAgent):
         if is_sufficient:
             self.update_state(sufficient_count=self.get_state("sufficient_count", 0) + 1)
         
+        # Grader 함수의 결과만 반환 (LangGraph 그래프의 route_from_grader가 writer 또는 planner로 라우팅)
         updated_state = {**state, **result}
-        
-        # 멀티 에이전트: 평가 결과에 따라 다음 단계 결정 (조건 분기)
-        max_loops = 3
-        web_search_results = updated_state.get("web_search_results", [])
-        
-        # ⚠️ 검색 결과가 없으면 즉시 Fallback (무한 루프 방지)
-        if len(web_search_results) == 0 and search_loop_count > 0:
-            logger.warning(f"⚠️ [{self.name}] 검색 결과 없음 - Writer 호출 (Fallback)")
-            print(f"⚠️ [{self.name}] 검색 결과 없음 - Writer 호출 (Fallback)", file=sys.stdout, flush=True)
-            from ..nodes.writer import writer as writer_func
-            updated_state = await writer_func(updated_state)
-            
-            # Writer 완료 후 save_response 호출
-            from ..nodes.save_response import save_response as save_response_func
-            updated_state = await save_response_func(updated_state)
-        elif is_sufficient and grader_score >= 0.7:
-            # 결과 충분 → Writer 호출
-            logger.info(f"✅ [{self.name}] 검색 결과 충분 (점수: {grader_score:.2f}) - Writer 호출")
-            print(f"✅ [{self.name}] 검색 결과 충분 (점수: {grader_score:.2f}) - Writer 호출", file=sys.stdout, flush=True)
-            from ..nodes.writer import writer as writer_func
-            updated_state = await writer_func(updated_state)
-            
-            # Writer 완료 후 save_response 호출
-            from ..nodes.save_response import save_response as save_response_func
-            updated_state = await save_response_func(updated_state)
-        elif search_loop_count < max_loops:
-            # 결과 부족 → PlannerAgent 재호출 (재검색)
-            logger.info(f"🔄 [{self.name}] 검색 결과 부족 (점수: {grader_score:.2f}) - PlannerAgent 재호출 (시도 {search_loop_count + 1}/{max_loops})")
-            print(f"🔄 [{self.name}] 검색 결과 부족 (점수: {grader_score:.2f}) - PlannerAgent 재호출 (시도 {search_loop_count + 1}/{max_loops})", file=sys.stdout, flush=True)
-            # search_loop_count 증가
-            updated_state["search_loop_count"] = search_loop_count + 1
-            try:
-                updated_state = await self.call_agent("PlannerAgent", updated_state)
-            except RecursionError as e:
-                logger.error(f"⚠️ [{self.name}] Recursion Error 발생 - Writer Fallback: {e}")
-                print(f"⚠️ [{self.name}] Recursion Error 발생 - Writer Fallback", file=sys.stdout, flush=True)
-                from ..nodes.writer import writer as writer_func
-                updated_state = await writer_func(updated_state)
-                from ..nodes.save_response import save_response as save_response_func
-                updated_state = await save_response_func(updated_state)
-            except Exception as e:
-                logger.error(f"⚠️ [{self.name}] PlannerAgent 재호출 실패 - Writer Fallback: {e}")
-                print(f"⚠️ [{self.name}] PlannerAgent 재호출 실패 - Writer Fallback", file=sys.stdout, flush=True)
-                from ..nodes.writer import writer as writer_func
-                updated_state = await writer_func(updated_state)
-                from ..nodes.save_response import save_response as save_response_func
-                updated_state = await save_response_func(updated_state)
-        else:
-            # 최대 반복 초과 → Writer 호출 (Fallback)
-            logger.warning(f"⚠️ [{self.name}] 검색 반복 초과 ({search_loop_count}회) - Writer 호출 (Fallback)")
-            print(f"⚠️ [{self.name}] 검색 반복 초과 ({search_loop_count}회) - Writer 호출 (Fallback)", file=sys.stdout, flush=True)
-            from ..nodes.writer import writer as writer_func
-            updated_state = await writer_func(updated_state)
-            
-            # Writer 완료 후 save_response 호출
-            from ..nodes.save_response import save_response as save_response_func
-            updated_state = await save_response_func(updated_state)
-        
         return updated_state
     
     def is_task_complete(self, state: ChatState) -> bool:

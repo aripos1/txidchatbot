@@ -498,9 +498,15 @@ async def faq_specialist(state: ChatState):
 **현재 날짜/시간 정보**
 - 현재 날짜: {current_date_str} ({current_date_iso})
 - 현재 시간: {current_time_str}
-
-사용자 질문: {user_message}
 {context_section}
+
+**매우 중요: 사용자 입력 처리 규칙**
+- 사용자 질문("{user_message}")을 그대로 반복하거나 인용하지 마세요
+- 질문의 의미를 이해한 후, 검색 결과를 바탕으로 직접적으로 답변하세요
+- 사용자 질문의 단어나 문장을 그대로 사용하지 말고, 새로운 문장으로 응답하세요
+
+다음 사용자 질문에 친절하고 정확하게 답변하세요 (질문을 반복하지 말고 직접 답변하세요):
+"{user_message}"
 
 빗썸 고객지원 페이지 검색 결과 및 FAQ 정보:
 {context}
@@ -583,7 +589,13 @@ async def faq_specialist(state: ChatState):
 - 현재 날짜: {current_date_str} ({current_date_iso})
 - 현재 시간: {current_time_str}
 
-사용자 질문: {user_message}
+**매우 중요: 사용자 입력 처리 규칙**
+- 사용자 질문("{user_message}")을 그대로 반복하거나 인용하지 마세요
+- 질문의 의미를 이해한 후, FAQ 정보를 바탕으로 직접적으로 답변하세요
+- 사용자 질문의 단어나 문장을 그대로 사용하지 말고, 새로운 문장으로 응답하세요
+
+다음 사용자 질문에 친절하고 정확하게 답변하세요 (질문을 반복하지 말고 직접 답변하세요):
+"{user_message}"
 
 FAQ 정보:
 {context}

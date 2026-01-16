@@ -1,12 +1,10 @@
 """
 Coordinator Agent - 멀티 에이전트 협업 시스템
-에이전트들의 순차적 협업을 관리하고 조율
+LangGraph 그래프를 통해 실행되는 래퍼 노드
 """
 import logging
-from typing import Optional
 from .base_agent import BaseAgent
-from ..models import ChatState, QuestionType
-from .agent_registry import get_registry
+from ..models import ChatState
 
 logger = logging.getLogger(__name__)
 
@@ -29,92 +27,34 @@ class CoordinatorAgent(BaseAgent):
     
     async def process(self, state: ChatState) -> ChatState:
         """
-        멀티 에이전트 협업 워크플로우
+        Coordinator 노드 - LangGraph 그래프를 통해 실행되는 래퍼
         
         역할:
-        1. RouterAgent를 통해 질문 분류
-        2. 적절한 첫 번째 에이전트에게 작업 위임
-        3. 이후 각 에이전트가 정해진 순서대로 협업
+        1. 멀티 에이전트 시스템 초기화 로그만 출력
+        2. 실제 로직은 router 노드에서 처리
+        3. 이후 흐름은 LangGraph의 조건부 엣지로 처리됨 (SSE 지원)
+        
+        주의: 이 함수는 LangGraph 노드로 실행되므로, 
+        내부에서 다른 에이전트를 직접 호출하지 않음.
+        대신 LangGraph 그래프의 조건부 엣지를 통해 다음 노드가 선택됨.
         """
         import sys
-        from langchain_core.messages import HumanMessage
         
         logger.info("="*60)
         logger.info("🚀 멀티 에이전트 협업 시스템 시작")
-        logger.info("   - Coordinator가 초기 라우팅 수행")
-        logger.info("   - 이후 에이전트들이 순차적으로 협업")
+        logger.info("   - Coordinator가 초기화 로그 출력")
+        logger.info("   - 이후 LangGraph 그래프를 통해 실행됨 (SSE 지원)")
         print("="*60, file=sys.stdout, flush=True)
         print("🚀 멀티 에이전트 협업 시스템 시작", file=sys.stdout, flush=True)
         print("="*60, file=sys.stdout, flush=True)
         
-        registry = get_registry()
+        # Coordinator는 단순히 초기화 로그만 출력
+        # 실제 라우팅은 router 노드에서 처리되고,
+        # 이후 흐름은 LangGraph 그래프의 조건부 엣지로 처리됨
+        # 이렇게 하면 모든 실행 단계가 LangGraph 노드로 실행되어 SSE가 동작함
         
-        # Step 1: RouterAgent가 질문 분류 (초기 라우팅)
-        router_agent = registry.get_agent("RouterAgent")
-        if not router_agent:
-            logger.error("❌ RouterAgent를 찾을 수 없습니다")
-            return state
-        
-        logger.info("📋 Step 1: RouterAgent - 질문 분류")
-        print("📋 Step 1: RouterAgent - 질문 분류", file=sys.stdout, flush=True)
-        
-        # 디버깅: 원본 state의 messages 확인
-        original_messages = state.get("messages", [])
-        logger.info(f"🔍 [Coordinator] RouterAgent 호출 전 messages: {len(original_messages)}개")
-        
-        state = await router_agent.process(state)
-        
-        # 디버깅: RouterAgent 실행 후 state의 messages 확인
-        after_router_messages = state.get("messages", [])
-        logger.info(f"🔍 [Coordinator] RouterAgent 호출 후 messages: {len(after_router_messages)}개")
-        
-        # Step 2: 첫 번째 에이전트에게 작업 위임 (이후는 자율)
-        question_type = state.get("question_type")
-        specialist_used = state.get("specialist_used")
-        
-        # 첫 번째 에이전트 결정
-        first_agent_name = None
-        if question_type == QuestionType.SIMPLE_CHAT or specialist_used == "simple_chat":
-            first_agent_name = "SimpleChatAgent"
-        elif question_type == QuestionType.FAQ or specialist_used == "faq" or question_type == QuestionType.GENERAL:
-            first_agent_name = "FAQAgent"
-        elif question_type == QuestionType.TRANSACTION or specialist_used == "transaction":
-            first_agent_name = "TransactionAgent"
-        elif question_type == QuestionType.WEB_SEARCH or specialist_used == "web_search" or question_type == QuestionType.HYBRID:
-            first_agent_name = "PlannerAgent"
-        
-        if not first_agent_name:
-            logger.warning("⚠️ 첫 번째 에이전트를 결정할 수 없습니다. FAQAgent로 기본 설정")
-            first_agent_name = "FAQAgent"
-        
-        # Step 3: 첫 번째 에이전트에게 작업 위임
-        logger.info(f"🎯 Step 2: {first_agent_name}에게 작업 위임")
-        logger.info(f"   - 이후 {first_agent_name}이 정해진 워크플로우 실행")
-        print(f"🎯 Step 2: {first_agent_name}에게 작업 위임", file=sys.stdout, flush=True)
-        print(f"   (이후 정해진 순서대로 협업)", file=sys.stdout, flush=True)
-        
-        # 디버깅: FirstAgent 호출 전 state의 messages 확인
-        before_first_agent_messages = state.get("messages", [])
-        logger.info(f"🔍 [Coordinator] {first_agent_name} 호출 전 messages: {len(before_first_agent_messages)}개")
-        if before_first_agent_messages:
-            user_msgs = [msg for msg in before_first_agent_messages if isinstance(msg, HumanMessage)]
-            logger.info(f"🔍 [Coordinator] 사용자 메시지: {len(user_msgs)}개")
-            if user_msgs:
-                logger.info(f"🔍 [Coordinator] 마지막 사용자 메시지: {user_msgs[-1].content[:50]}...")
-        
-        first_agent = registry.get_agent(first_agent_name)
-        if first_agent:
-            state = await first_agent.process(state)
-        else:
-            logger.error(f"❌ {first_agent_name}을 찾을 수 없습니다")
-        
-        logger.info("="*60)
-        logger.info("✅ 멀티 에이전트 협업 워크플로우 완료")
-        logger.info(f"   - 총 {len(registry.list_agents())}개 에이전트 등록")
-        print("="*60, file=sys.stdout, flush=True)
-        print("✅ 멀티 에이전트 협업 워크플로우 완료", file=sys.stdout, flush=True)
-        print("="*60, file=sys.stdout, flush=True)
-        
+        # state를 그대로 반환 (변경 없음)
+        # 실제 라우팅은 router 노드에서 처리됨
         return state
 
 

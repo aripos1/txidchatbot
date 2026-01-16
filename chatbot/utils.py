@@ -36,20 +36,33 @@ def extract_user_message(state: ChatState) -> str:
     user_messages = [msg for msg in messages if isinstance(msg, HumanMessage)]
     return user_messages[-1].content if user_messages else ""
 
-def extract_conversation_context(state: ChatState, limit: int = 5) -> str:
-    """상태에서 최근 대화 맥락 추출"""
+def extract_conversation_context(state: ChatState, limit: int = 5, include_ai_responses: bool = False) -> str:
+    """상태에서 최근 대화 맥락 추출
+    
+    Args:
+        state: ChatState
+        limit: 추출할 대화 쌍(질문-답변) 개수
+        include_ai_responses: AI 답변을 포함할지 여부 (기본값: False)
+                             False인 경우 사용자 질문만 포함하여 이전 답변이 노출되지 않도록 함
+    """
     messages = state.get("messages", [])
     if not messages:
         return ""
     
-    # 최근 대화만 추출 (사용자와 AI 메시지 모두)
-    recent_messages = messages[-limit*2:] if len(messages) > limit*2 else messages
+    # 최근 대화만 추출
+    if include_ai_responses:
+        # AI 답변 포함: 사용자와 AI 메시지 모두
+        recent_messages = messages[-limit*2:] if len(messages) > limit*2 else messages
+    else:
+        # AI 답변 제외: 사용자 메시지만
+        user_messages = [msg for msg in messages if isinstance(msg, HumanMessage)]
+        recent_messages = user_messages[-limit:] if len(user_messages) > limit else user_messages
     
     context_parts = []
     for msg in recent_messages:
         if isinstance(msg, HumanMessage):
             context_parts.append(f"사용자: {msg.content}")
-        elif isinstance(msg, AIMessage):
+        elif include_ai_responses and isinstance(msg, AIMessage):
             context_parts.append(f"챗봇: {msg.content}")
     
     return "\n".join(context_parts)
