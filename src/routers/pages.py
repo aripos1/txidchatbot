@@ -33,7 +33,10 @@ def register_pages_routes(app, templates: Jinja2Templates):
     @app.get("/bithumb-test", response_class=HTMLResponse)
     async def bithumb_test_page(request: Request):
         """빗썸 API 테스트 페이지"""
-        return templates.TemplateResponse("features/bithumb_test.html", {"request": request})
+        response = templates.TemplateResponse("features/bithumb_test.html", {"request": request})
+        # Google 크롤러가 인덱싱하지 않도록 HTTP 헤더 추가
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return response
     
     @app.get("/bithumb-guide", response_class=HTMLResponse)
     async def bithumb_guide_page(request: Request):

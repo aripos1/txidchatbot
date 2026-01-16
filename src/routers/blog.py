@@ -13,10 +13,37 @@ router = APIRouter(prefix="", tags=["blog"])
 def register_blog_routes(app, templates: Jinja2Templates):
     """블로그 라우트를 FastAPI 앱에 등록"""
     
+    # 카테고리별 이모지 매핑
+    CATEGORY_EMOJI = {
+        "기초 가이드": "📚",
+        "트랜잭션": "💸",
+        "스마트 컨트랙트": "🤖",
+        "멀티체인": "🌐",
+        "DeFi": "🏦",
+        "보안": "🔒",
+        "레이어 2": "⚡",
+        "NFT": "🖼️"
+    }
+    
     @app.get("/blog", response_class=HTMLResponse)
     async def blog_page(request: Request):
         """블로그 목록 페이지"""
-        return templates.TemplateResponse("content/blog.html", {"request": request})
+        # 모든 블로그 포스트를 템플릿에 전달
+        posts_list = []
+        for slug, post_data in BLOG_POSTS.items():
+            category = post_data.get("category", "")
+            emoji = CATEGORY_EMOJI.get(category, "📝")
+            posts_list.append({
+                "slug": slug,
+                "emoji": emoji,
+                **post_data
+            })
+        # 날짜 순으로 정렬 (최신순)
+        posts_list.sort(key=lambda x: x.get("date", ""), reverse=True)
+        return templates.TemplateResponse("content/blog.html", {
+            "request": request,
+            "posts": posts_list
+        })
     
     @app.get("/blog/{post_slug}", response_class=HTMLResponse)
     async def blog_post_page(request: Request, post_slug: str):

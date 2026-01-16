@@ -313,9 +313,7 @@ async def get_chains():
     return JSONResponse(content={"supportedChains": supported_chains})
 
 # --- 기타 페이지 ---
-@app.get("/bithumb-test")
-async def bithumb_test_page(request: Request):
-    return templates.TemplateResponse("features/bithumb_test.html", {"request": request})
+# /bithumb-test 라우트는 src/routers/pages.py에서 처리됨 (X-Robots-Tag 헤더 포함)
 
 @app.get("/bithumb-guide")
 async def bithumb_guide_page(request: Request):
@@ -578,13 +576,7 @@ async def robots_txt():
     else:
         return Response(content="User-agent: *\nAllow: /", media_type="text/plain")
 
-@app.get("/sitemap.xml")
-async def sitemap_xml():
-    sitemap_path = "static/sitemap.xml"
-    if os.path.exists(sitemap_path):
-        return FileResponse(sitemap_path, media_type="application/xml")
-    else:
-        return Response(content="<?xml version='1.0' encoding='UTF-8'?><urlset></urlset>", media_type="application/xml")
+# sitemap.xml은 src/routers/utility.py에서 동적으로 생성됨 (블로그 포스트 포함)
 
 # --- Bithumb API Test ---
 @app.post("/api/bithumb/test")

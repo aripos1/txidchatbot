@@ -20,7 +20,7 @@ class ChatbotConfiguration:
     
     # Planner LLM 설정
     PLANNER_MODEL: str = os.getenv("PLANNER_MODEL") or os.getenv("OPENAI_MODEL", _DEFAULT_MODEL)
-    PLANNER_TEMPERATURE: float = float(os.getenv("PLANNER_TEMPERATURE", "0.3"))
+    PLANNER_TEMPERATURE: float = float(os.getenv("PLANNER_TEMPERATURE", "0.1"))
     
     # Writer LLM 설정
     WRITER_MODEL: str = os.getenv("WRITER_MODEL") or os.getenv("OPENAI_MODEL", _DEFAULT_MODEL)
