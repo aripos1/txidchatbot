@@ -1,12 +1,9 @@
 """
-LangGraph를 사용한 챗봇 그래프 구현 (Router-Specialist 아키텍처)
+LangGraph를 사용한 챗봇 그래프 구현 (Coordinator-Specialist 아키텍처)
 분리된 노드들을 조합하여 그래프 구성
 
-멀티 에이전트 모드:
-- USE_TRUE_MULTI_AGENT=true: CoordinatorAgent가 모든 에이전트의 협업을 관리
-- USE_TRUE_MULTI_AGENT=false: 그래프가 에이전트를 순차적으로 호출 (LangGraph 제어)
+CoordinatorAgent가 라우팅을 직접 처리하고, 모든 에이전트가 LangGraph 노드로 등록되어 순차적으로 실행됩니다.
 """
-import os
 import logging
 from typing import Literal
 from langgraph.graph import StateGraph, END
@@ -181,7 +178,6 @@ def create_chatbot_graph():
     # 멀티 에이전트 시스템 초기화 - 모든 에이전트를 레지스트리에 등록
     from .agents.agent_registry import get_registry
     from .agents import (
-        get_router_agent,
         get_faq_agent,
         get_transaction_agent,
         get_simple_chat_agent,
@@ -192,8 +188,7 @@ def create_chatbot_graph():
     
     registry = get_registry()
     
-    # 모든 에이전트 등록
-    registry.register(get_router_agent())
+    # 모든 에이전트 등록 (RouterAgent 제거 - nodes/router.py의 router 함수 직접 사용)
     registry.register(get_faq_agent())
     registry.register(get_transaction_agent())
     registry.register(get_simple_chat_agent())
@@ -203,126 +198,26 @@ def create_chatbot_graph():
     
     logger.info(f"✅ 기본 에이전트 등록 완료: {len(registry.list_agents())}개")
     
-    # 멀티 에이전트 협업 모드 활성화 여부 확인
-    use_true_multi_agent = os.getenv("USE_TRUE_MULTI_AGENT", "false").lower() == "true"
+    # CoordinatorAgent가 라우팅을 직접 처리하는 멀티 에이전트 협업 모드
+    # LangGraph SSE 지원을 위해 모든 실행 단계를 LangGraph 노드로 실행
+    from .agents.coordinator_agent import get_coordinator_agent
+    coordinator_agent = get_coordinator_agent()
+    registry.register(coordinator_agent)
     
-    if use_true_multi_agent:
-        # 협업 모드: CoordinatorAgent가 에이전트 간 협업을 관리
-        # LangGraph SSE 지원을 위해 모든 실행 단계를 LangGraph 노드로 실행
-        from .agents.coordinator_agent import get_coordinator_agent
-        coordinator_agent = get_coordinator_agent()
-        registry.register(coordinator_agent)
-        
-        logger.info("🤝 멀티 에이전트 협업 모드 활성화: LangGraph 그래프를 통해 실행")
-        logger.info("   - 모든 노드가 LangGraph 노드로 등록됨 (SSE 지원)")
-        logger.info(f"✅ 시스템 초기화 완료: 총 {len(registry.list_agents())}개 에이전트")
-        
-        # LangGraph SSE를 위해 모든 노드를 등록하고 조건부 엣지로 연결
-        workflow = StateGraph(ChatState)
-        
-        # 모든 노드 등록 (LangGraph SSE 지원)
-        workflow.add_node("coordinator", coordinator_agent.process)
-        # router 노드는 제거 - CoordinatorAgent가 직접 라우팅 처리
-        workflow.add_node("intent_clarifier", intent_clarifier)
-        workflow.add_node("simple_chat_specialist", simple_chat_specialist)
-        workflow.add_node("faq_specialist", faq_specialist)
-        workflow.add_node("transaction_specialist", transaction_specialist)
-        workflow.add_node("check_db", check_db)
-        workflow.add_node("planner", planner)
-        workflow.add_node("researcher", researcher)
-        workflow.add_node("summarizer", summarizer)
-        workflow.add_node("grader", grader)
-        workflow.add_node("writer", writer)
-        workflow.add_node("save_response", save_response)
-        
-        # 엔트리 포인트: coordinator (라우팅 포함)
-        workflow.set_entry_point("coordinator")
-        
-        # Coordinator에서 직접 전문가로 라우팅 (조건부 엣지)
-        # CoordinatorAgent가 router 로직을 직접 실행하므로 router 노드 없이 바로 라우팅
-        workflow.add_conditional_edges(
-            "coordinator",
-            route_to_specialist,
-            {
-                "intent_clarifier": "intent_clarifier",
-                "simple_chat": "simple_chat_specialist",
-                "faq": "faq_specialist",
-                "transaction": "transaction_specialist",
-                "web_search": "planner",
-                "hybrid": "planner",  # hybrid는 Deep Research로 직접 연결
-                "general": "faq_specialist"
-            }
-        )
-        
-        # Intent Clarifier → Save
-        workflow.add_edge("intent_clarifier", "save_response")
-        
-        # SimpleChat → Save
-        workflow.add_edge("simple_chat_specialist", "save_response")
-        
-        # FAQ → Save 또는 Deep Research (조건부 엣지)
-        workflow.add_conditional_edges(
-            "faq_specialist",
-            route_from_faq,
-            {
-                "planner": "planner",  # Deep Research로 직접 연결
-                "save_response": "save_response"
-            }
-        )
-        
-        # Transaction → Save
-        workflow.add_edge("transaction_specialist", "save_response")
-        
-        # Deep Research 순환형 구조
-        # Planner → Save (writer_executed 플래그가 있으면) 또는 Researcher (없으면)
-        workflow.add_conditional_edges(
-            "planner",
-            route_from_planner,
-            {
-                "save_response": "save_response",
-                "researcher": "researcher"
-            }
-        )
-        
-        # Researcher → Grader
-        workflow.add_edge("researcher", "grader")
-        
-        # Grader → Planner(재검색) 또는 Writer(답변) 또는 Save(이미 실행됨) (조건부 엣지)
-        workflow.add_conditional_edges(
-            "grader",
-            route_from_grader,
-            {
-                "planner": "planner",
-                "writer": "writer",
-                "fallback": "writer",
-                "save_response": "save_response"  # writer_executed 플래그가 있으면 바로 save_response로
-            }
-        )
-        
-        # Writer → Save
-        workflow.add_edge("writer", "save_response")
-        
-        # Save → END
-        workflow.add_edge("save_response", END)
-        
-        app = workflow.compile()
-        logger.info("✅ 멀티 에이전트 협업 그래프 생성 완료 (모든 노드 LangGraph 노드로 실행 - SSE 지원)")
-        return app
+    logger.info("🤝 멀티 에이전트 협업 모드: CoordinatorAgent가 라우팅을 직접 처리")
+    logger.info("   - 모든 노드가 LangGraph 노드로 등록됨 (SSE 지원)")
+    logger.info(f"✅ 시스템 초기화 완료: 총 {len(registry.list_agents())}개 에이전트")
     
-    # LangGraph 제어 모드: 그래프가 에이전트를 순차적으로 호출
-    logger.info("📊 LangGraph 제어 모드: 그래프 엣지로 워크플로우 관리")
-    
-    # ========== 그래프 구성 ==========
+    # LangGraph SSE를 위해 모든 노드를 등록하고 조건부 엣지로 연결
     workflow = StateGraph(ChatState)
     
-    # 노드 추가
-    workflow.add_node("router", router)
+    # 모든 노드 등록 (LangGraph SSE 지원)
+    workflow.add_node("coordinator", coordinator_agent.process)
+    # router 노드는 제거 - CoordinatorAgent가 직접 라우팅 처리
     workflow.add_node("intent_clarifier", intent_clarifier)
     workflow.add_node("simple_chat_specialist", simple_chat_specialist)
     workflow.add_node("faq_specialist", faq_specialist)
     workflow.add_node("transaction_specialist", transaction_specialist)
-    
-    # Deep Research 노드들
     workflow.add_node("check_db", check_db)
     workflow.add_node("planner", planner)
     workflow.add_node("researcher", researcher)
@@ -331,12 +226,13 @@ def create_chatbot_graph():
     workflow.add_node("writer", writer)
     workflow.add_node("save_response", save_response)
     
-    # 엔트리 포인트
-    workflow.set_entry_point("router")
+    # 엔트리 포인트: coordinator (라우팅 포함)
+    workflow.set_entry_point("coordinator")
     
-    # Router에서 전문가로 라우팅
+    # Coordinator에서 직접 전문가로 라우팅 (조건부 엣지)
+    # CoordinatorAgent가 router 로직을 직접 실행하므로 router 노드 없이 바로 라우팅
     workflow.add_conditional_edges(
-        "router",
+        "coordinator",
         route_to_specialist,
         {
             "intent_clarifier": "intent_clarifier",
@@ -355,7 +251,7 @@ def create_chatbot_graph():
     # SimpleChat → Save
     workflow.add_edge("simple_chat_specialist", "save_response")
     
-    # FAQ → Save 또는 Deep Research
+    # FAQ → Save 또는 Deep Research (조건부 엣지)
     workflow.add_conditional_edges(
         "faq_specialist",
         route_from_faq,
@@ -382,7 +278,7 @@ def create_chatbot_graph():
     # Researcher → Grader
     workflow.add_edge("researcher", "grader")
     
-    # Grader → Planner(재검색) 또는 Writer(답변) 또는 Save(이미 실행됨)
+    # Grader → Planner(재검색) 또는 Writer(답변) 또는 Save(이미 실행됨) (조건부 엣지)
     workflow.add_conditional_edges(
         "grader",
         route_from_grader,
@@ -400,11 +296,8 @@ def create_chatbot_graph():
     # Save → END
     workflow.add_edge("save_response", END)
     
-    # 그래프 컴파일
     app = workflow.compile()
-    
-    logger.info("✅ 챗봇 그래프 생성 완료 (Router-Specialist 아키텍처)")
-    
+    logger.info("✅ 멀티 에이전트 협업 그래프 생성 완료 (모든 노드 LangGraph 노드로 실행 - SSE 지원)")
     return app
 
 

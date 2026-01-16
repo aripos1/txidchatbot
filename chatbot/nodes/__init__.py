@@ -9,8 +9,8 @@ LangGraph 노드 모듈
 # 타입 import
 from ..models import ChatState
 
-# 에이전트 기반 노드 (멀티 에이전트 구조)
-from ..agents.router_agent import router
+# Router 노드 (nodes/router.py에서 직접 import - RouterAgent 사용 안 함)
+from .router import router
 from ..agents.specialist_agents import (
     simple_chat_specialist,
     faq_specialist,

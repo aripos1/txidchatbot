@@ -35,11 +35,11 @@ class PlannerAgent(BaseAgent):
         from langchain_core.messages import HumanMessage
         self.update_state(plan_count=self.get_state("plan_count", 0) + 1)
         
-        # RouterAgent로부터 받은 정보 확인
+        # CoordinatorAgent(router)로부터 받은 정보 확인
         router_info = self.get_from_memory("shared_from_RouterAgent")
         if router_info:
-            logger.info(f"📨 [{self.name}] RouterAgent로부터 정보 수신: {router_info.get('question_type', 'N/A')}")
-            print(f"📨 [{self.name}] RouterAgent로부터 정보 수신: {router_info.get('question_type', 'N/A')}", file=sys.stdout, flush=True)
+            logger.info(f"📨 [{self.name}] Coordinator(router)로부터 정보 수신: {router_info.get('question_type', 'N/A')}")
+            print(f"📨 [{self.name}] Coordinator(router)로부터 정보 수신: {router_info.get('question_type', 'N/A')}", file=sys.stdout, flush=True)
         
         # 기존 Planner 함수 호출만 수행 (LangGraph 그래프가 이후 흐름을 관리)
         result = await planner_func(state)
@@ -243,7 +243,7 @@ class GraderAgent(BaseAgent):
             from langchain_core.messages import AIMessage
             # 최종 AI 응답이 있으면 완료
             ai_messages = [msg for msg in messages if isinstance(msg, AIMessage)]
-            if ai_messages and len(ai_messages) > 1:  # RouterAgent 응답 + 최종 응답
+            if ai_messages and len(ai_messages) > 1:  # Coordinator(router) 응답 + 최종 응답
                 return True
         return False
     

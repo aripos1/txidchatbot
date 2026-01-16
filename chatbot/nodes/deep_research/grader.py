@@ -19,9 +19,11 @@ logger = logging.getLogger(__name__)
 def _get_grader_llm():
     """Grader LLM 인스턴스 생성"""
     grader_model = os.getenv("GRADER_MODEL") or os.getenv("OPENAI_MODEL") or config._DEFAULT_MODEL
+    grader_temperature = float(os.getenv("GRADER_TEMPERATURE", "0.1"))
+    logger.info(f"🤖 Grader 모델: {grader_model}, Temperature: {grader_temperature}")
     return ChatOpenAI(
         model=grader_model,
-        temperature=0.1,
+        temperature=grader_temperature,
         openai_api_key=config.OPENAI_API_KEY
     )
 
