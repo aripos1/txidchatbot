@@ -194,8 +194,15 @@
 
 /* Mobile Styles */
 @media (max-width: 768px) {
+    .site-header {
+        padding-left: env(safe-area-inset-left, 0);
+        padding-right: env(safe-area-inset-right, 0);
+    }
+    
     .header-container {
         padding: var(--space-sm) var(--space-md);
+        padding-left: max(var(--space-md), env(safe-area-inset-left, 0px));
+        padding-right: max(var(--space-md), env(safe-area-inset-right, 0px));
     }
     
     .logo-text {
@@ -216,10 +223,14 @@
         overflow: hidden;
         transition: max-height var(--transition-base);
         gap: 0;
+        padding-left: env(safe-area-inset-left, 0);
+        padding-right: env(safe-area-inset-right, 0);
     }
     
     .nav-menu.active {
-        max-height: 400px;
+        max-height: 500px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
     
     .nav-link {
@@ -227,6 +238,10 @@
         padding: var(--space-md);
         border-radius: 0;
         border-bottom: 1px solid var(--border-color-light);
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
     }
     
     .nav-link:last-child {
@@ -237,8 +252,17 @@
         display: none;
     }
     
+    .nav-link.active {
+        background-color: var(--color-primary-50);
+    }
+    
     .mobile-menu-toggle {
         display: flex;
+        min-width: 44px;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        padding: var(--space-sm);
     }
     
     .mobile-menu-toggle.active .hamburger:nth-child(1) {
@@ -257,14 +281,29 @@
 @media (max-width: 480px) {
     .header-container {
         padding: var(--space-sm);
+        padding-left: max(var(--space-sm), env(safe-area-inset-left, 0px));
+        padding-right: max(var(--space-sm), env(safe-area-inset-right, 0px));
     }
     
     .logo-text {
         display: none;
     }
     
+    .logo-icon {
+        font-size: 1.25rem;
+    }
+    
     .nav-text {
         font-size: var(--font-size-sm);
+    }
+    
+    .nav-link {
+        padding: var(--space-sm) var(--space-md);
+        font-size: var(--font-size-sm);
+    }
+    
+    .nav-menu.active {
+        max-height: calc(100vh - 60px);
     }
 }
 </style>

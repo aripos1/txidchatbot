@@ -97,6 +97,27 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Initialize Lucide Icons (안전한 버전)
+(function() {
+    function initIcons() {
+        try {
+            if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
+                lucide.createIcons();
+            }
+        } catch (e) {
+            console.warn('Lucide icons initialization failed:', e);
+        }
+    }
+    
+    // DOMContentLoaded 시 초기화
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initIcons);
+    } else {
+        // 이미 로드된 경우 약간의 지연 후 실행 (Lucide 라이브러리 로드 대기)
+        setTimeout(initIcons, 100);
+    }
+})();
+
 // Console welcome message
 console.log(
     '%c🔗 Multi Chain Explorer',

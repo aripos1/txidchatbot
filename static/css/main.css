@@ -244,6 +244,11 @@ a:hover {
     box-shadow: var(--shadow-md);
 }
 
+.btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+}
+
 .btn-secondary {
     background-color: var(--bg-primary);
     color: var(--text-primary);
@@ -271,11 +276,35 @@ a:hover {
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-sm);
     padding: var(--space-xl);
-    transition: box-shadow var(--transition-base);
+    transition: all var(--transition-base);
+    position: relative;
 }
 
 .card:hover {
     box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.card-enhanced {
+    position: relative;
+    overflow: hidden;
+}
+
+.card-enhanced::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--transition-base);
+}
+
+.card-enhanced:hover::before {
+    transform: scaleX(1);
 }
 
 .card-header {
@@ -493,6 +522,8 @@ a:hover {
     
     body {
         padding-top: 64px;
+        padding-left: env(safe-area-inset-left, 0);
+        padding-right: env(safe-area-inset-right, 0);
     }
     
     .container {
@@ -502,6 +533,39 @@ a:hover {
     h1 { font-size: var(--font-size-3xl); }
     h2 { font-size: var(--font-size-2xl); }
     h3 { font-size: var(--font-size-xl); }
+    
+    /* 모바일 터치 타겟 최적화 */
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 0.75rem 1.5rem;
+        font-size: var(--font-size-base);
+    }
+    
+    .btn-sm {
+        min-height: 44px;
+        padding: 0.625rem 1.25rem;
+        font-size: var(--font-size-sm);
+    }
+    
+    /* 모바일 카드 패딩 최적화 */
+    .card {
+        padding: var(--space-lg);
+    }
+    
+    /* 모바일 폼 입력 필드 최적화 */
+    .form-input,
+    .form-textarea,
+    .form-select {
+        font-size: 16px; /* iOS zoom 방지 */
+        padding: 0.875rem 1rem;
+        min-height: 44px;
+    }
+    
+    .main-content {
+        padding: var(--space-lg) 0;
+        padding-bottom: max(var(--space-xl), calc(var(--space-xl) + env(safe-area-inset-bottom, 0px)));
+    }
 }
 
 @media (max-width: 480px) {
@@ -509,8 +573,38 @@ a:hover {
         font-size: 14px;
     }
     
+    body {
+        padding-top: 60px;
+    }
+    
     .container {
         padding: 0 var(--space-sm);
+    }
+    
+    h1 { font-size: clamp(var(--font-size-2xl), 8vw, var(--font-size-3xl)); }
+    h2 { font-size: clamp(var(--font-size-xl), 6vw, var(--font-size-2xl)); }
+    h3 { font-size: clamp(var(--font-size-lg), 5vw, var(--font-size-xl)); }
+    
+    /* 작은 모바일 화면 버튼 최적화 */
+    .btn {
+        padding: 0.875rem 1.25rem;
+        font-size: var(--font-size-base);
+    }
+    
+    .card {
+        padding: var(--space-md);
+        border-radius: var(--radius-lg);
+    }
+    
+    /* 작은 화면에서 텍스트 가독성 개선 */
+    p {
+        font-size: var(--font-size-base);
+        line-height: 1.6;
+    }
+    
+    .main-content {
+        padding: var(--space-md) 0;
+        padding-bottom: max(var(--space-lg), calc(var(--space-lg) + env(safe-area-inset-bottom, 0px)));
     }
 }
 

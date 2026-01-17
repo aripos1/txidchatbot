@@ -357,9 +357,13 @@
     }
     
     .chatbot-sidebar {
-        order: -1;
+        order: 1 !important;
         position: relative;
         top: 0;
+    }
+    
+    .chatbot-main {
+        order: -1 !important;
     }
     
     .chat-container {
@@ -370,6 +374,25 @@
 @media (max-width: 768px) {
     .chatbot-wrapper {
         padding: var(--space-md);
+        padding-left: max(var(--space-md), env(safe-area-inset-left, 0px));
+        padding-right: max(var(--space-md), env(safe-area-inset-right, 0px));
+    }
+    
+    .chatbot-layout {
+        gap: var(--space-md);
+    }
+    
+    .chatbot-sidebar {
+        order: 1 !important;
+    }
+    
+    .chatbot-main {
+        order: -1 !important;
+    }
+    
+    .chat-container {
+        max-height: calc(100vh - 120px);
+        border-radius: var(--radius-xl);
     }
     
     .chat-header {
@@ -380,8 +403,15 @@
         font-size: var(--font-size-lg);
     }
     
+    .clear-btn {
+        min-height: 36px;
+        padding: var(--space-sm) var(--space-md);
+        font-size: var(--font-size-sm);
+    }
+    
     .chat-messages {
         padding: var(--space-lg);
+        -webkit-overflow-scrolling: touch;
     }
     
     .chat-input-container {
@@ -389,18 +419,58 @@
         padding-bottom: max(var(--space-md), calc(var(--space-md) + env(safe-area-inset-bottom, 0px)));
     }
     
+    .chat-input-form {
+        gap: var(--space-sm);
+    }
+    
     .chat-input {
         font-size: 16px; /* iOS zoom 방지 */
-        padding: var(--space-sm) var(--space-md);
+        padding: var(--space-md) var(--space-lg);
+        min-height: 44px;
+        border-radius: var(--radius-lg);
     }
     
     .send-btn {
-        padding: var(--space-sm) var(--space-md);
-        font-size: var(--font-size-sm);
+        padding: var(--space-md) var(--space-lg);
+        font-size: var(--font-size-base);
+        min-height: 44px;
+        min-width: 60px;
+        white-space: nowrap;
     }
     
     .message-bubble {
         max-width: 85%;
+        font-size: var(--font-size-base);
+        padding: var(--space-md) var(--space-lg);
+        line-height: 1.5;
+    }
+    
+    .welcome-message {
+        padding: var(--space-2xl) var(--space-md);
+    }
+    
+    .welcome-message h2 {
+        font-size: var(--font-size-xl);
+    }
+    
+    .thinking-process {
+        padding: var(--space-sm);
+        font-size: var(--font-size-xs);
+    }
+    
+    /* 모바일에서 사이드바 컴팩트하게 */
+    .chatbot-sidebar .card {
+        padding: var(--space-md);
+    }
+    
+    .chatbot-sidebar .section-title {
+        font-size: var(--font-size-sm);
+        margin-bottom: var(--space-sm);
+        padding-bottom: var(--space-xs);
+    }
+    
+    .chatbot-sidebar .btn {
+        padding: var(--space-sm) var(--space-md);
         font-size: var(--font-size-sm);
     }
 }
@@ -582,6 +652,29 @@
 @media (max-width: 480px) {
     .chatbot-wrapper {
         padding: var(--space-sm);
+        padding-left: max(var(--space-sm), env(safe-area-inset-left, 0px));
+        padding-right: max(var(--space-sm), env(safe-area-inset-right, 0px));
+    }
+    
+    .chatbot-layout {
+        gap: var(--space-sm);
+    }
+    
+    .chatbot-sidebar {
+        order: 1 !important;
+    }
+    
+    .chatbot-main {
+        order: -1 !important;
+    }
+    
+    .chat-container {
+        max-height: calc(100vh - 100px);
+        border-radius: var(--radius-lg);
+    }
+    
+    .chat-header {
+        padding: var(--space-sm) var(--space-md);
     }
     
     .chat-header h1 {
@@ -591,9 +684,51 @@
     .clear-btn {
         padding: var(--space-xs) var(--space-sm);
         font-size: var(--font-size-xs);
+        min-height: 32px;
+    }
+    
+    .chat-messages {
+        padding: var(--space-md);
     }
     
     .chat-input-container {
+        padding: var(--space-sm) var(--space-md);
         padding-bottom: max(var(--space-sm), calc(var(--space-sm) + env(safe-area-inset-bottom, 20px)));
+    }
+    
+    .chat-input {
+        padding: var(--space-sm) var(--space-md);
+        font-size: 16px;
+        min-height: 44px;
+    }
+    
+    .send-btn {
+        padding: var(--space-sm) var(--space-md);
+        font-size: var(--font-size-sm);
+        min-height: 44px;
+        min-width: 50px;
+    }
+    
+    .message-bubble {
+        max-width: 90%;
+        font-size: var(--font-size-sm);
+        padding: var(--space-sm) var(--space-md);
+    }
+    
+    .welcome-message {
+        padding: var(--space-xl) var(--space-sm);
+    }
+    
+    .welcome-message h2 {
+        font-size: var(--font-size-lg);
+    }
+    
+    .welcome-message p {
+        font-size: var(--font-size-sm);
+    }
+    
+    .thinking-process {
+        padding: var(--space-xs) var(--space-sm);
+        font-size: var(--font-size-xs);
     }
 }

@@ -19,6 +19,24 @@ def register_utility_routes(app):
         """헬스 체크 엔드포인트"""
         return {"status": "healthy", "timestamp": time.time()}
     
+    @app.get("/favicon.ico")
+    async def favicon():
+        """파비콘 제공"""
+        favicon_path = "static/favicon.ico"
+        if os.path.exists(favicon_path):
+            return FileResponse(favicon_path, media_type="image/x-icon")
+        else:
+            return Response(status_code=404)
+    
+    @app.get("/apple-touch-icon.png")
+    async def apple_touch_icon():
+        """Apple Touch Icon 제공"""
+        icon_path = "static/apple-touch-icon.png"
+        if os.path.exists(icon_path):
+            return FileResponse(icon_path, media_type="image/png")
+        else:
+            return Response(status_code=404)
+    
     @app.get("/robots.txt")
     async def robots_txt():
         """robots.txt 파일 제공"""

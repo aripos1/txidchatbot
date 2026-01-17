@@ -630,40 +630,204 @@
 }
 
 @media (max-width: 768px) {
+    .page-container {
+        padding: var(--space-lg) var(--space-md);
+        padding-left: max(var(--space-md), env(safe-area-inset-left, 0px));
+        padding-right: max(var(--space-md), env(safe-area-inset-right, 0px));
+    }
+    
+    .search-section {
+        padding: var(--space-lg);
+        margin-bottom: var(--space-lg);
+    }
     
     .search-area,
     .input-group {
         flex-direction: column;
+        gap: var(--space-md);
+    }
+    
+    .search-input {
+        font-size: 16px; /* iOS zoom 방지 */
+        padding: 0.875rem 1rem;
+        min-height: 44px;
+        width: 100%;
     }
     
     .search-button {
         width: 100%;
+        min-height: 44px;
+        padding: 0.875rem 1.5rem;
+        font-size: var(--font-size-base);
     }
     
-    .chain-grid {
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    .result-area {
+        padding: var(--space-lg);
+    }
+    
+    .transaction-card {
+        padding: var(--space-md);
     }
     
     .transaction-header {
         flex-direction: column;
         align-items: flex-start;
+        gap: var(--space-md);
     }
     
     .transaction-link {
         width: 100%;
         justify-content: center;
+        min-height: 44px;
+        padding: 0.875rem 1.5rem;
+    }
+    
+    .info-item {
+        padding: var(--space-sm);
+    }
+    
+    .info-value {
+        font-size: var(--font-size-sm);
+        padding: var(--space-xs) var(--space-sm);
+        word-break: break-all;
+    }
+    
+    .copy-button {
+        min-height: 36px;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .chain-info-section {
+        gap: var(--space-lg);
+        margin-top: var(--space-xl);
+    }
+    
+    .chain-section {
+        padding: var(--space-lg);
+    }
+    
+    .chain-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: var(--space-md);
+    }
+    
+    .chain-card {
+        min-height: 90px;
+        padding: var(--space-md);
+    }
+    
+    .converter-section {
+        padding: var(--space-lg);
+    }
+    
+    .converter-input {
+        font-size: 16px; /* iOS zoom 방지 */
+        padding: 0.875rem 1rem;
+        min-height: 44px;
+    }
+    
+    .output-area {
+        padding: var(--space-md);
+        font-size: var(--font-size-sm);
     }
 }
 
 @media (max-width: 480px) {
+    .page-container {
+        padding: var(--space-md) var(--space-sm);
+        padding-left: max(var(--space-sm), env(safe-area-inset-left, 0px));
+        padding-right: max(var(--space-sm), env(safe-area-inset-right, 0px));
+    }
+    
+    .search-section {
+        padding: var(--space-md);
+        margin-bottom: var(--space-md);
+        border-radius: var(--radius-lg);
+    }
+    
+    .search-input {
+        padding: 0.75rem 0.875rem;
+        font-size: 16px;
+    }
+    
+    .search-button {
+        padding: 0.75rem 1.25rem;
+        font-size: var(--font-size-sm);
+    }
+    
+    .result-area {
+        padding: var(--space-md);
+        border-radius: var(--radius-lg);
+    }
+    
+    .transaction-card {
+        padding: var(--space-sm);
+        border-radius: var(--radius-lg);
+    }
+    
+    .transaction-header {
+        margin-bottom: var(--space-md);
+        padding-bottom: var(--space-sm);
+    }
+    
+    .info-item {
+        padding: var(--space-xs) var(--space-sm);
+    }
+    
+    .info-label {
+        font-size: var(--font-size-xs);
+        margin-bottom: var(--space-xs);
+    }
+    
+    .info-value {
+        font-size: var(--font-size-xs);
+        padding: var(--space-xs);
+    }
     
     .chain-grid {
-        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
         gap: var(--space-sm);
     }
     
     .chain-card {
         min-height: 80px;
         padding: var(--space-sm);
+    }
+    
+    .chain-symbol {
+        font-size: var(--font-size-base);
+    }
+    
+    .chain-name {
+        font-size: var(--font-size-xs);
+    }
+    
+    .chain-section {
+        padding: var(--space-md);
+    }
+    
+    .converter-section {
+        padding: var(--space-md);
+    }
+    
+    .converter-input {
+        padding: 0.75rem 0.875rem;
+    }
+    
+    .output-area {
+        padding: var(--space-sm);
+    }
+    
+    .result-item {
+        padding: var(--space-md);
+    }
+    
+    .result-label {
+        font-size: var(--font-size-xs);
+    }
+    
+    .result-value {
+        font-size: var(--font-size-xs);
+        padding: var(--space-xs) var(--space-sm);
     }
 }

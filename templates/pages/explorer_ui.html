@@ -42,7 +42,7 @@
                             autocomplete="off"
                         />
                         <button @click="lookupTx()" class="search-button btn btn-primary">
-                            <span>🔍</span>
+                            <i data-lucide="search" class="icon"></i>
                             <span>트랜잭션 조회</span>
                         </button>
                     </div>
@@ -52,8 +52,11 @@
                 <section class="result-area card fade-in" id="result"></section>
 
                 <!-- SEO 친화적 설명 섹션: TXID란 무엇인가 -->
-                <article class="info-section card fade-in" style="margin-top: 2rem;">
-                    <h2>코인 전송 확인 번호(TXID)란 무엇인가요?</h2>
+                <article class="info-section card card-enhanced fade-in" style="margin-top: 2rem;">
+                    <h2>
+                        <i data-lucide="info" class="icon icon-lg" style="color: var(--color-primary);"></i>
+                        코인 전송 확인 번호(TXID)란 무엇인가요?
+                    </h2>
                     <p>
                         코인을 다른 곳으로 보내셨나요? 그렇다면 전송 내역을 확인할 수 있는 고유한 번호가 발급되었을 것입니다. 
                         이 번호를 우리는 "TXID" 또는 "트랜잭션 ID"라고 부릅니다. 쉽게 말하면, 택배를 보낼 때 받는 송장 번호와 같은 역할을 합니다. 
@@ -65,7 +68,10 @@
                         이 번호는 매우 길고 복잡하게 생긴 영어와 숫자의 조합으로 되어 있어 보기에 어려울 수 있지만, 
                         걱정하지 마세요. 저희 사이트에서는 이 긴 번호만 입력하시면 자동으로 여러 정보를 찾아서 보여드립니다.
                     </p>
-                    <h3>왜 이 번호가 중요한가요?</h3>
+                    <h3>
+                        <i data-lucide="alert-circle" class="icon" style="color: var(--color-warning);"></i>
+                        왜 이 번호가 중요한가요?
+                    </h3>
                     <p>
                         코인 전송은 한 번 실행되면 되돌릴 수 없습니다. 따라서 정확히 누구에게 보냈는지, 얼마를 보냈는지 확인하는 것이 매우 중요합니다. 
                         만약 실수로 잘못된 주소로 보냈다면 그것을 되돌릴 방법이 없기 때문입니다. 
@@ -75,8 +81,11 @@
                 </article>
 
                 <!-- SEO 친화적 설명 섹션: 사이트 사용법 안내 -->
-                <article class="info-section card fade-in" style="margin-top: 2rem;">
-                    <h2>사이트 사용법 안내</h2>
+                <article class="info-section card card-enhanced fade-in" style="margin-top: 2rem;">
+                    <h2>
+                        <i data-lucide="book-open" class="icon icon-lg" style="color: var(--color-primary);"></i>
+                        사이트 사용법 안내
+                    </h2>
                     <p>
                         저희 사이트는 어르신들도 쉽게 사용하실 수 있도록 최대한 간단하게 만들었습니다. 
                         사용법은 매우 쉽습니다. 위에 있는 검색창에 여러분이 받으신 전송 확인 번호를 입력하시면 됩니다. 
@@ -89,7 +98,10 @@
                         그리고 그 전송이 성공적으로 완료되었는지 여부입니다. 
                         모든 정보는 한글로 쉽게 설명되어 있으니, 복잡한 영어 용어 때문에 걱정하지 마세요.
                     </p>
-                    <h3>여러 가지 코인을 한 번에 확인하세요</h3>
+                    <h3>
+                        <i data-lucide="coins" class="icon" style="color: var(--color-primary);"></i>
+                        여러 가지 코인을 한 번에 확인하세요
+                    </h3>
                     <p>
                         저희 사이트의 가장 큰 장점은 여러 종류의 코인 전송 내역을 한 번에 확인할 수 있다는 것입니다. 
                         비트코인, 이더리움, 리플, 테더 등 다양한 암호화폐의 전송 내역을 지원합니다. 

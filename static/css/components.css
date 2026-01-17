@@ -302,14 +302,24 @@
 @media (max-width: 768px) {
     .page-container {
         padding: var(--space-lg) var(--space-md);
+        padding-left: max(var(--space-md), env(safe-area-inset-left, 0px));
+        padding-right: max(var(--space-md), env(safe-area-inset-right, 0px));
+    }
+    
+    .page-header {
+        padding: var(--space-2xl) var(--space-lg) var(--space-xl);
+        margin-top: var(--space-md);
+        border-radius: var(--radius-xl);
     }
     
     .page-title {
-        font-size: var(--font-size-3xl);
+        font-size: clamp(var(--font-size-2xl), 6vw, var(--font-size-3xl));
+        line-height: 1.2;
     }
     
     .page-subtitle {
-        font-size: var(--font-size-lg);
+        font-size: clamp(var(--font-size-base), 3vw, var(--font-size-lg));
+        line-height: 1.5;
     }
     
     .section-title {
@@ -317,10 +327,75 @@
     }
     
     .back-to-top {
-        bottom: var(--space-md);
-        right: var(--space-md);
-        width: 40px;
-        height: 40px;
+        bottom: max(var(--space-md), calc(var(--space-md) + env(safe-area-inset-bottom, 0px)));
+        right: max(var(--space-md), env(safe-area-inset-right, 0px));
+        width: 48px;
+        height: 48px;
+        font-size: var(--font-size-lg);
+        min-width: 48px;
+        min-height: 48px;
+    }
+    
+    /* 모바일 빈 상태 최적화 */
+    .empty-state {
+        padding: var(--space-2xl) var(--space-md);
+    }
+    
+    .empty-state-icon {
+        font-size: 3rem;
+    }
+    
+    /* 모바일 알림 최적화 */
+    .alert {
+        padding: var(--space-md);
+        font-size: var(--font-size-sm);
+    }
+}
+
+@media (max-width: 480px) {
+    .page-container {
+        padding: var(--space-md) var(--space-sm);
+        padding-left: max(var(--space-sm), env(safe-area-inset-left, 0px));
+        padding-right: max(var(--space-sm), env(safe-area-inset-right, 0px));
+    }
+    
+    .page-header {
+        padding: var(--space-xl) var(--space-md) var(--space-lg);
+        margin-top: var(--space-sm);
+    }
+    
+    .page-title {
+        font-size: clamp(var(--font-size-xl), 8vw, var(--font-size-2xl));
+        margin-bottom: var(--space-sm);
+    }
+    
+    .page-subtitle {
+        font-size: var(--font-size-base);
+    }
+    
+    .section-title {
+        font-size: var(--font-size-lg);
+    }
+    
+    .back-to-top {
+        bottom: max(var(--space-sm), calc(var(--space-sm) + env(safe-area-inset-bottom, 0px)));
+        right: max(var(--space-sm), env(safe-area-inset-right, 0px));
+        width: 44px;
+        height: 44px;
+        font-size: var(--font-size-base);
+        min-width: 44px;
+        min-height: 44px;
+    }
+    
+    .empty-state {
+        padding: var(--space-xl) var(--space-sm);
+    }
+    
+    .empty-state-icon {
+        font-size: 2.5rem;
+    }
+    
+    .empty-state-title {
         font-size: var(--font-size-lg);
     }
 }
